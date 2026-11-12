@@ -3,12 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <meta name="description" content="Пробная карта проекта «Пока открыт мост»." />
     <title>Пока открыт мост</title>
   </head>
   <body>
-    <main>
-      <h1>Пока открыт мост</h1>
-      <p id="status" role="status"></p>
+    <main class="board">
+      <header class="intro">
+        <p class="eyebrow">Пробная карта</p>
+        <h1>Пока открыт мост</h1>
+        <p class="instruction">Выберите убежище или развязку на карте.</p>
+      </header>
+
+      <section class="map-panel" aria-label="Выбор узла карты">
+        <div id="map" aria-hidden="true"></div>
+        <div class="map-controls">
+          <div class="node-options" role="group" aria-label="Узлы карты">
+            <button type="button" data-node="shelter" aria-pressed="false" disabled>Убежище</button>
+            <button type="button" data-node="junction" aria-pressed="false" disabled>Развязка</button>
+          </div>
+          <p id="selection-status" role="status">Карта загружается…</p>
+        </div>
+      </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
