@@ -5,6 +5,7 @@ const previewUrl = "http://127.0.0.1:4180/stage-0/";
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: "**/*.spec.mjs",
   use: {
     viewport: { width: 1280, height: 800 },
     launchOptions: { args: ["--enable-unsafe-swiftshader"] },
