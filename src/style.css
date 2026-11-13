@@ -113,6 +113,28 @@ h2 { font-size: 1.2rem; }
 }
 .floodgate-choice input { accent-color: var(--accent); }
 
+.turn-feedback:not(:empty) {
+  padding: 0.7rem 0.9rem;
+  border-top: 1px solid var(--border);
+  background: #e5efe7;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.turn-feedback .closure { margin-top: 0.18rem; color: var(--error); }
+
+.turn-guide {
+  margin-top: 0.55rem;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.game-help { margin-top: 0.55rem; font-size: 0.87rem; color: var(--muted); }
+.game-help summary { color: var(--accent); cursor: pointer; font-weight: 600; }
+.game-help ul { margin: 0.45rem 0 0; padding-left: 1.2rem; line-height: 1.45; }
+.game-help li + li { margin-top: 0.25rem; }
+
 .panel, .journal { padding: 1rem; }
 .vehicles { display: grid; gap: 0.4rem; margin-block: 0.8rem; }
 .destinations { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -135,7 +157,7 @@ button[aria-pressed="true"] {
   background: #dfefe8;
 }
 
-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+button:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 button:disabled { opacity: 0.55; cursor: default; }
 
 .vehicles button { display: grid; gap: 0.2rem; text-align: left; }

@@ -121,7 +121,8 @@ export class MapPreview extends Phaser.Scene {
 
   renderState({ state, moves, selected, available, forecastMode, conflicts }: MapView) {
     this.roads.clear();
-    this.arrows.clear();
+    this.tweens.killTweensOf(this.arrows);
+    this.arrows.clear().setAlpha(1);
     for (const route of routes) {
       const closed = state.closedRoutes.includes(route.id);
       const conflict = conflicts.includes(route.id);
@@ -183,6 +184,16 @@ export class MapPreview extends Phaser.Scene {
         zone.input!.enabled = !state.endReason;
       }
     }
+  }
+
+  flashOrders() {
+    this.tweens.add({
+      targets: this.arrows,
+      alpha: { from: 0.28, to: 1 },
+      duration: 140,
+      yoyo: true,
+      onComplete: () => this.arrows.setAlpha(1),
+    });
   }
 
   private drawTerrain() {

@@ -23,6 +23,7 @@
       <div class="layout">
         <section class="map-panel" aria-label="Карта эвакуации">
           <div id="map" aria-hidden="true"></div>
+          <div id="turn-feedback" class="turn-feedback" role="status" aria-atomic="true"></div>
           <div class="map-footer">
             <span id="floodgate-status"></span>
             <span>Мост пропускает один автобус за ход</span>
@@ -43,16 +44,26 @@
         <div class="panel">
           <div id="planning" hidden>
             <h2 id="orders-title">Приказы</h2>
+            <p id="turn-guide" class="turn-guide"></p>
+            <details class="game-help">
+              <summary>Как играть</summary>
+              <ul>
+                <li>Выбери машину, затем соседний узел на карте или кнопкой под транспортом. Стрелка показывает приказ. «Ждать» его снимает.</li>
+                <li>За ход каждая машина проезжает один участок. У неё 18 мест. Пустая машина забирает людей перед выездом, а счёт растёт после прибытия в убежище.</li>
+                <li>Через мост за ход проезжает один автобус в любом направлении. После последнего доступного хода маршрут закроется.</li>
+                <li>На третьем ходу выбери режим водосброса. Открытие продлит работу моста, но сократит время работы парома.</li>
+              </ul>
+            </details>
             <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
             <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
             <p id="order-status" class="hint" role="status"></p>
             <fieldset id="floodgate-choice" class="floodgate-choice" aria-describedby="floodgate-instruction" hidden>
               <legend>Решение о водосбросе</legend>
-              <p id="floodgate-instruction" class="hint">Выбери вариант и выполни ход, чтобы подтвердить решение.</p>
+              <p id="floodgate-instruction" class="hint">Сравни сроки в прогнозе. Решение вступит в силу после выполнения хода.</p>
               <label><input type="radio" name="floodgate" value="closed" /> Оставить закрытым</label>
               <label><input type="radio" name="floodgate" value="open" /> Открыть водосброс</label>
             </fieldset>
-            <button type="button" id="advance" class="primary">Выполнить ход</button>
+            <button type="button" id="advance" class="primary" aria-describedby="order-status">Выполнить ход</button>
           </div>
           <section id="result" aria-labelledby="result-title" hidden>
             <h2 id="result-title" tabindex="-1">Итоги эвакуации</h2>

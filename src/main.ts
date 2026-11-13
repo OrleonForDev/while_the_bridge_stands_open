@@ -17,6 +17,9 @@ const loading = document.querySelector<HTMLElement>("#loading")!;
 const advance = document.querySelector<HTMLButtonElement>("#advance")!;
 const restart = document.querySelector<HTMLButtonElement>("#restart")!;
 const orderStatus = document.querySelector<HTMLElement>("#order-status")!;
+const turnGuide = document.querySelector<HTMLElement>("#turn-guide")!;
+const turnFeedback = document.querySelector<HTMLElement>("#turn-feedback")!;
+const gameHelp = document.querySelector<HTMLDetailsElement>(".game-help")!;
 const turnNumber = document.querySelector<HTMLElement>("#turn-number")!;
 const score = document.querySelector<HTMLElement>("#score")!;
 const resultScore = document.querySelector<HTMLElement>("#result-score")!;
@@ -36,6 +39,8 @@ const forecasts = { closed: getRouteForecast("closed"), open: getRouteForecast("
 const forecastRowsByMode = new Map<FloodgateMode, { row: HTMLTableRowElement; status: HTMLSpanElement }>();
 
 let state = createInitialState();
+let resolving = false;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let draftFloodgate: FloodgateMode | undefined;
 let moves: Partial<Record<VehicleId, NodeId | null>> = {};
 let selected: VehicleId = "bus-1";
@@ -83,13 +88,13 @@ function turnOrders(): TurnOrders {
 }
 
 function selectVehicle(id: VehicleId) {
-  if (state.endReason !== null) return;
+  if (resolving || state.endReason !== null) return;
   selected = id;
   render();
 }
 
 function assign(destination: NodeId | null) {
-  if (state.endReason !== null) return;
+  if (resolving || state.endReason !== null) return;
   if (destination !== null && !availableDestinations(selected).includes(destination)) return;
   moves = { ...moves, [selected]: destination };
   render();
@@ -132,7 +137,7 @@ for (const mode of forecastModes) {
 
 for (const input of floodgateInputs) {
   input.addEventListener("change", () => {
-    if (!isDecisionTurn() || !input.checked) return;
+    if (resolving || !isDecisionTurn() || !input.checked) return;
     draftFloodgate = input.value === "open" ? "open" : "closed";
     render();
   });
@@ -143,6 +148,7 @@ function renderForecast() {
   const chosen = state.floodgate !== null;
   floodgateChoice.hidden = !isDecisionTurn();
   for (const input of floodgateInputs) input.checked = input.value === draftFloodgate;
+  floodgateChoice.disabled = resolving;
   for (const [mode, { row, status }] of forecastRowsByMode) {
     const isShown = shownMode === mode;
     row.classList.toggle("forecast-active", isShown);
@@ -152,6 +158,24 @@ function renderForecast() {
     ? "Водосброс " + floodgateLabels[shownMode].toLowerCase()
     : "На карте прогноз: водосброс " + floodgateLabels[shownMode].toLowerCase();
   return shownMode;
+}
+
+function describeNextStep() {
+  if (state.turn === 1) {
+    return "Назначь маршруты автобусам и парому, затем выполни ход. Пустая машина забирает до 18 человек перед выездом.";
+  }
+  if (state.turn === 2) {
+    return "Пассажиры засчитываются только в убежище. Через мост за ход проезжает один автобус.";
+  }
+  if (isDecisionTurn()) {
+    return "Открытый водосброс дольше держит мост доступным, но раньше закрывает паромную переправу.";
+  }
+  const mode = state.floodgate ?? "closed";
+  const lastChance = forecasts[mode].filter(({ lastOpenTurn }) => lastOpenTurn === state.turn);
+  if (lastChance.length) {
+    return "Последний ход для проезда: " + lastChance.map(({ route }) => routeName(route).toLowerCase()).join(", ") + ".";
+  }
+  return "";
 }
 
 function render() {
@@ -166,6 +190,9 @@ function render() {
   score.textContent = report.total.evacuated + " / " + report.total.initial;
   planning.hidden = finished;
   result.hidden = !finished;
+  const guide = describeNextStep();
+  turnGuide.textContent = guide;
+  turnGuide.hidden = !guide;
 
   for (const id of vehicleIds) {
     const button = vehicleButtons.get(id)!;
@@ -180,6 +207,7 @@ function render() {
     order.textContent = destination ? "→ " + nodes[destination].label : "Ждать";
     if (conflict) order.textContent += " · конфликт на мосту";
     button.replaceChildren(title, location, order);
+    button.disabled = resolving;
     button.setAttribute("aria-pressed", String(id === selected));
     button.classList.toggle("conflict", conflict);
     if (conflict) button.setAttribute("aria-describedby", "order-status");
@@ -189,14 +217,25 @@ function render() {
   destinationGroup.setAttribute("aria-label", "Назначить маршрут · " + vehicleName(selected));
   for (const [id, button] of destinationButtons) {
     button.hidden = !available.includes(id);
+    button.disabled = resolving;
     button.setAttribute("aria-pressed", String(moves[selected] === id));
   }
   wait.setAttribute("aria-pressed", String(!moves[selected]));
 
-  advance.disabled = finished || issues.length > 0;
-  orderStatus.textContent = conflicts.length
-    ? "На мосту два приказа. Измени маршрут одного автобуса."
-    : available.length ? "Выбери соседний узел на карте или в списке." : "Для этого транспорта открытых маршрутов нет.";
+  wait.disabled = resolving;
+  advance.disabled = resolving || finished || issues.length > 0;
+  advance.textContent = resolving ? "Выполняется ход…" : "Выполнить ход";
+  if (conflicts.length) {
+    orderStatus.textContent = "На мосту два приказа. Измени маршрут одного автобуса.";
+  } else if (isDecisionTurn() && !draftFloodgate) {
+    orderStatus.textContent = "Чтобы выполнить ход, выбери режим водосброса.";
+  } else if (moves[selected]) {
+    orderStatus.textContent = "Приказ принят. Можно назначить маршрут другой машине или выполнить ход.";
+  } else {
+    orderStatus.textContent = available.length
+      ? "Выбери соседний узел на карте или в списке."
+      : "Для этого транспорта открытых маршрутов нет.";
+  }
   orderStatus.classList.toggle("error", conflicts.length > 0);
 
   for (const { route, lastOpenTurn } of forecasts[forecastMode]) {
@@ -224,6 +263,28 @@ function describeEvent(event: TurnEvent): string | null {
       return event.mode === "open" ? "Водосброс открыт." : "Водосброс оставлен закрытым.";
     case "game-ended":
       return null;
+  }
+}
+
+function showTurnFeedback(events: readonly TurnEvent[], turn: number) {
+  const boarded = events.reduce((total, event) => total + (event.kind === "boarded" ? event.passengers.count : 0), 0);
+  const evacuated = events.reduce((total, event) => total + (event.kind === "evacuated" ? event.passengers.count : 0), 0);
+  const moved = events.some((event) => event.kind === "moved");
+  const summary = document.createElement("p");
+  const title = document.createElement("strong");
+  title.textContent = "Ход " + turn + " выполнен.";
+  const details = moved
+    ? " Посадка: " + boarded + " чел. Доставлено в убежище: " + evacuated + " чел."
+    : " Транспорт остался на местах.";
+  summary.append(title, details);
+  turnFeedback.replaceChildren(summary);
+
+  for (const event of events) {
+    if (event.kind !== "route-closed") continue;
+    const closure = document.createElement("p");
+    closure.className = "closure";
+    closure.textContent = "С хода " + event.turn + " проезд закрыт: " + routeName(event.route).toLowerCase() + ".";
+    turnFeedback.append(closure);
   }
 }
 
@@ -267,18 +328,30 @@ function showResult(reason: EndReason) {
   resultTitle.focus();
 }
 
-advance.addEventListener("click", (event) => {
-  // A mouse double-click must not confirm the newly opened turn.
-  if (event.detail > 1) return;
+advance.addEventListener("click", async (event) => {
+  if (resolving || event.detail > 1) return;
   const turn = state.turn;
   const next = advanceTurn(state, turnOrders());
   if (!next.ok) return;
+  const restoreFocus = document.activeElement === advance;
+  if (!reduceMotion.matches && next.events.some((event) => event.kind === "moved")) {
+    resolving = true;
+    render();
+    scene.flashOrders();
+    await new Promise<void>((done) => window.setTimeout(done, 280));
+    resolving = false;
+  }
   state = next.state;
   draftFloodgate = undefined;
   moves = {};
+  showTurnFeedback(next.events, turn);
   addJournalEntries(next.events, turn);
   render();
-  if (state.endReason !== null) showResult(state.endReason);
+  if (state.endReason !== null) {
+    showResult(state.endReason);
+  } else if (restoreFocus && (document.activeElement === document.body || document.activeElement === advance)) {
+    (isDecisionTurn() ? floodgateInputs[0] : advance).focus();
+  }
 });
 
 restart.addEventListener("click", () => {
@@ -287,6 +360,8 @@ restart.addEventListener("click", () => {
   moves = {};
   selected = "bus-1";
   journal.replaceChildren();
+  turnFeedback.replaceChildren();
+  gameHelp.open = false;
   journalEmpty.hidden = false;
   render();
   vehicleButtons.get(selected)!.focus();
