@@ -38,6 +38,10 @@ const turnFeedback = document.querySelector<HTMLElement>("#turn-feedback")!;
 const gameHelp = document.querySelector<HTMLDetailsElement>(".game-help")!;
 const turnNumber = document.querySelector<HTMLElement>("#turn-number")!;
 const score = document.querySelector<HTMLElement>("#score")!;
+const shelterCount = document.querySelector<HTMLElement>("#shelter-count")!;
+const shelterNode = nodes[firstScenario.shelter];
+shelterCount.style.left = (shelterNode.x / map.width) * 100 + "%";
+shelterCount.style.top = ((shelterNode.y + 128) / map.height) * 100 + "%";
 const resultScore = document.querySelector<HTMLElement>("#result-score")!;
 const resultReason = document.querySelector<HTMLElement>("#result-reason")!;
 const resultRows = document.querySelector<HTMLTableSectionElement>("#district-results")!;
@@ -458,6 +462,7 @@ const scene = new MapPreview(assign, selectVehicle, () => {
   loading.hidden = true;
   forecast.hidden = false;
   render();
+  shelterCount.hidden = false;
 });
 
 async function startGame() {

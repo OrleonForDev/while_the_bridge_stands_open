@@ -47,7 +47,7 @@ const eastBank = points([[810, 0], [776, 118], [801, 230], [836, 349], [816, 455
 
 const routeLabels = {
   bridge: { x: 679, y: 317 },
-  "ferry-crossing": { x: 595, y: 519 },
+  "ferry-crossing": { x: 695, y: 552 },
   "lower-road": { x: 1160, y: 545 },
 } as const;
 
@@ -124,10 +124,12 @@ export class MapPreview extends Phaser.Scene {
   }
 
   preload() {
-    const icons = import.meta.env.BASE_URL + "assets/transport/";
+    const assets = import.meta.env.BASE_URL + "assets/";
+    const icons = assets + "transport/";
     this.load.svg("vehicle-bus", icons + "bus.svg", { scale: 2 });
     this.load.svg("vehicle-ferry", icons + "ferry.svg", { scale: 2 });
     this.load.svg("waiting-people", icons + "people.svg", { scale: 2 });
+    for (const id of nodeIds) this.load.svg("node-" + id, assets + "map/" + id + ".svg", { scale: 2 });
   }
 
   create() {
@@ -282,9 +284,10 @@ export class MapPreview extends Phaser.Scene {
   }
 
   private drawNode(id: NodeId) {
-    const { x, y, symbol, label } = nodes[id];
+    const { x, y, label } = nodes[id];
     const marker = this.add.circle(x, y, 40, 0xfffbf0).setStrokeStyle(5, ink);
-    this.add.text(x, y, symbol, { fontFamily, fontSize: "38px", fontStyle: "bold", color: "#243b39" }).setOrigin(0.5);
+    const key = "node-" + id;
+    if (this.textures.exists(key)) this.add.image(x, y, key).setScale(0.5);
     this.add.text(x, y + 58, label, {
       fontFamily, fontSize: "37px", fontStyle: "bold", color: "#243b39",
       backgroundColor: "#f3eee1", padding: { x: 8, y: 2 },

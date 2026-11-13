@@ -47,12 +47,7 @@ h1 {
 
 h2 { font-size: 1.2rem; }
 .instruction { margin-top: 0.55rem; color: var(--muted); }
-.game-header-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 1rem; }
 .sound-toggle { min-width: 7.2rem; font-size: 0.87rem; }
-.counters { display: flex; gap: 1.2rem; }
-.counters p { display: grid; gap: 0.2rem; }
-.counters span { color: var(--muted); font-size: 0.85rem; }
-.counters strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 
 .layout {
   display: grid;
@@ -69,6 +64,31 @@ h2 { font-size: 1.2rem; }
 
 .map-panel { overflow: hidden; }
 
+.map-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.map-heading h2 { font-size: 1rem; }
+.map-turn {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 0.35rem;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.map-turn strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.map-view { position: relative; container-type: inline-size; }
+
 #map {
   width: 100%;
   aspect-ratio: 1740 / 840;
@@ -77,6 +97,22 @@ h2 { font-size: 1.2rem; }
 }
 
 #map canvas { display: block; }
+
+.shelter-count {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.1em 0.3em;
+  background: #f3eee1;
+  border-radius: 0.25em;
+  color: var(--ink);
+  font-size: clamp(0.72rem, 2cqw, 1.1rem);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 .map-footer, .routes {
   display: flex;
