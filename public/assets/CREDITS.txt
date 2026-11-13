@@ -1,0 +1,30 @@
+Сторонние ассеты игры «Пока открыт мост»
+
+Tabler Icons, версия 3.51.0
+Автор и правообладатель — Paweł Kuna. Лицензия MIT.
+tabler/bus.svg — автобус на карте и в панели приказов.
+tabler/ship.svg — паром на карте и в панели приказов.
+tabler/rotate.svg — значок кнопки «Повторить».
+Источник: https://github.com/tabler/tabler-icons/tree/v3.51.0/icons/outline
+Текст лицензии в сборке: tabler/LICENSE.txt
+Исходные файлы без изменений. В интерфейсе размер и цвет задаёт CSS.
+
+Inter, версия 4.1
+Автор проекта — Rasmus Andersson. Правообладатель — The Inter Project Authors.
+Лицензия SIL Open Font License 1.1.
+inter/InterVariable.woff2 — вариативный шрифт интерфейса и подписей карты.
+Источник: https://github.com/rsms/inter/blob/v4.1/docs/font-files/InterVariable.woff2
+Текст лицензии в сборке: inter/LICENSE.txt
+Исходный файл без изменений.
+
+Interface Sounds, версия 1.0
+Автор — Kenney. Лицензия CC0 1.0 Universal.
+kenney/click_001.ogg — назначение маршрута или ожидания.
+kenney/confirmation_001.ogg — выполнение хода.
+kenney/switch_001.ogg — выполнение хода, после которого закрывается маршрут.
+Источник: https://kenney.nl/assets/interface-sounds
+Архив от автора: https://opengameart.org/content/interface-sounds
+Уведомление автора в сборке: kenney/License.txt
+Исходные файлы без изменений. Громкость задаётся в игре.
+
+Река, дороги, стрелки, узлы и отметки закрытия отрисовываются кодом игры.
