@@ -34,10 +34,10 @@ const confirmAdvance = document.querySelector<HTMLButtonElement>("#confirm-advan
 const restart = document.querySelector<HTMLButtonElement>("#restart")!;
 const orderStatus = document.querySelector<HTMLElement>("#order-status")!;
 const orderCount = document.querySelector<HTMLElement>("#order-count")!;
-const destinationHeading = document.querySelector<HTMLElement>("#destination-heading")!;
 const turnGuide = document.querySelector<HTMLElement>("#turn-guide")!;
 const turnFeedback = document.querySelector<HTMLElement>("#turn-feedback")!;
-const gameHelp = document.querySelector<HTMLDetailsElement>(".game-help")!;
+const gameHelp = document.querySelector<HTMLDialogElement>("#game-help")!;
+document.querySelector<HTMLButtonElement>("#show-help")!.addEventListener("click", () => gameHelp.showModal());
 const turnNumber = document.querySelector<HTMLElement>("#turn-number")!;
 const score = document.querySelector<HTMLElement>("#score")!;
 const shelterCount = document.querySelector<HTMLElement>("#shelter-count")!;
@@ -71,6 +71,7 @@ let moves: Partial<Record<VehicleId, NodeId | null>> = {};
 let selected: VehicleId = "bus-1";
 const vehicleButtons = new Map<VehicleId, HTMLButtonElement>();
 const destinationButtons = new Map<NodeId, HTMLButtonElement>();
+const plannedRoutes = new Map<VehicleId, HTMLLIElement>();
 const queueList = document.querySelector("#district-queues")!;
 const queueCounts = new Map<(typeof districtIds)[number], Text>();
 for (const district of districtIds) {
@@ -122,6 +123,10 @@ function availableDestinations(vehicle: VehicleId): NodeId[] {
   return destinations;
 }
 
+function unassignedVehicles() {
+  return vehicleIds.filter((id) => moves[id] === undefined && availableDestinations(id).length > 0);
+}
+
 function isDecisionTurn() {
   return state.endReason === null && state.turn === firstScenario.decisionTurn && state.floodgate === null;
 }
@@ -145,18 +150,24 @@ function assign(destination: NodeId | null) {
 }
 
 const vehicleGroup = document.querySelector("#vehicles")!;
+const selectedRoutes = document.querySelector("#selected-routes")!;
 for (const id of vehicleIds) {
   const button = makeButton(vehicleGroup, "", () => selectVehicle(id));
   button.setAttribute("aria-label", vehicleName(id));
   vehicleButtons.set(id, button);
+  const item = document.createElement("li");
+  item.id = id + "-order";
+  item.className = "vehicle-order";
+  selectedRoutes.append(item);
+  plannedRoutes.set(id, item);
 }
 
 const destinationGroup = document.querySelector("#destinations")!;
 for (const id of nodeIds) {
   destinationButtons.set(id, makeButton(destinationGroup, nodes[id].label, () => assign(id)));
 }
-const wait = makeButton(destinationGroup, "Ждать", () => assign(null));
-wait.classList.add("wait-order");
+const wait = document.querySelector<HTMLButtonElement>("#wait-order")!;
+wait.addEventListener("click", () => assign(null));
 
 for (const route of routes) {
   if (route.lastOpenTurn === null) continue;
@@ -238,10 +249,11 @@ function render() {
   const forecastMode = renderForecast();
   const finished = state.endReason !== null;
   const report = getEvacuationReport(state);
+  const unassigned = unassignedVehicles();
 
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
-  orderCount.textContent = Object.keys(moves).length + " из " + vehicleIds.length + " назначено";
+  orderCount.textContent = (vehicleIds.length - unassigned.length) + " из " + vehicleIds.length + " готовы";
   mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути" : "Выбран транспорт · " + vehicleName(selected);
   for (const [district, count] of queueCounts) {
     count.data = String(report.districts[district].waiting);
@@ -273,18 +285,24 @@ function render() {
     occupancyDescription.className = "sr-only";
     occupancyDescription.textContent = " мест занято";
     occupancy.append(passengerCount, occupancyDescription);
-    const order = document.createElement("span");
-    order.id = id + "-order";
-    order.className = "vehicle-order";
-    order.textContent = destination ? "→ " + nodes[destination].label : planned ? "Ждать" : "Без приказа";
-    if (conflict) order.textContent += " · конфликт на мосту";
+    const order = plannedRoutes.get(id)!;
+    const automaticWait = !planned && !unassigned.includes(id);
+    const route = document.createElement("span");
+    route.textContent = destination ? nodes[current.node].label + " → " + nodes[destination].label
+      : planned ? "Ждать" : automaticWait ? "Ждёт автоматически" : "Без приказа";
+    if (conflict) route.textContent += " · конфликт на мосту";
     if (planned) {
       const checkmark = document.createElement("span");
       checkmark.setAttribute("aria-hidden", "true");
       checkmark.textContent = "✓ ";
-      order.prepend(checkmark);
+      route.prepend(checkmark);
     }
-    button.replaceChildren(title, occupancy, location, order);
+    const name = document.createElement("strong");
+    name.textContent = vehicles[id].kind === "ferry" ? "Паром" : vehicles[id].label;
+    order.replaceChildren(name, route);
+    order.classList.toggle("planned", planned);
+    order.classList.toggle("conflict", conflict);
+    button.replaceChildren(title, occupancy, location);
     button.disabled = resolving;
     button.setAttribute("aria-pressed", String(id === selected));
     location.id = id + "-location";
@@ -296,7 +314,6 @@ function render() {
   }
 
   destinationGroup.setAttribute("aria-label", "Назначить маршрут · " + vehicleName(selected));
-  destinationHeading.textContent = "Куда направить · " + vehicleName(selected);
   for (const [id, button] of destinationButtons) {
     button.hidden = !available.includes(id);
     button.disabled = resolving;
@@ -304,7 +321,8 @@ function render() {
   }
   wait.setAttribute("aria-pressed", String(moves[selected] === null));
 
-  wait.disabled = resolving;
+  wait.disabled = resolving || available.length === 0;
+  wait.title = "Оставить на месте · " + vehicleName(selected);
   advance.disabled = resolving || finished || issues.length > 0;
   advance.classList.toggle("awaiting-floodgate", needsFloodgate);
   advance.textContent = resolving ? "Выполняется ход…" : needsFloodgate ? "Выполнить ход · выбери водосброс" : "Выполнить ход";
@@ -316,8 +334,8 @@ function render() {
     orderStatus.textContent = "";
   } else {
     orderStatus.textContent = available.length
-      ? "Выбери пункт на карте или кнопкой."
-      : "Открытых маршрутов нет. Можно назначить «Ждать».";
+      ? "Выбери подсвеченный пункт на карте."
+      : "Открытых маршрутов нет. Транспорт ждёт автоматически.";
   }
   orderStatus.classList.toggle("error", conflicts.length > 0);
 
@@ -425,7 +443,7 @@ unassignedDialog.addEventListener("keydown", preventRepeatedEnter);
 
 advance.addEventListener("click", (event) => {
   if (resolving || unassignedDialog.open || event.detail > 1) return;
-  const unassigned = vehicleIds.filter((id) => moves[id] === undefined);
+  const unassigned = unassignedVehicles();
   if (unassigned.length) {
     const names = unassigned.map(vehicleName).join(", ");
     unassignedMessage.textContent = "Без приказа: " + names + ". Этот транспорт останется на месте.";
@@ -476,7 +494,6 @@ restart.addEventListener("click", () => {
   selected = "bus-1";
   journal.replaceChildren();
   turnFeedback.replaceChildren();
-  gameHelp.open = false;
   journalEmpty.hidden = false;
   render();
   vehicleButtons.get(selected)!.focus();

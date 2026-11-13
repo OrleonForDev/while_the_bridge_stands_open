@@ -32,15 +32,19 @@ function watchPage(page, baseURL) {
 function controls(page) {
   const vehicle = (name) => page.getByRole("button", { name, exact: true });
   const destination = (name) => page.getByRole("group", { name: /Назначить маршрут/ }).getByRole("button", { name, exact: true });
+  const route = (name) => page.locator("#selected-routes li").filter({ has: page.getByText(name.replace("Автобус ", ""), { exact: true }) });
   return {
     advance: page.getByRole("button", { name: "Выполнить ход" }),
-    confirmation: page.getByRole("dialog"),
+    confirmation: page.locator("#unassigned-dialog"),
+    wait: page.getByRole("button", { name: "Ждать", exact: true }),
     vehicle,
     destination,
+    route,
     async order(name, target) {
       await vehicle(name).click();
-      await destination(target).click();
-      await expect(vehicle(name)).toContainText("→ " + target);
+      await expect(vehicle(name)).toHaveAttribute("aria-pressed", "true");
+      await destination(target).press("Enter");
+      await expect(route(name)).toContainText("→ " + target);
     },
   };
 }
@@ -79,7 +83,7 @@ test("План А от первого приказа до итога и повт
   const canvas = page.locator("#map canvas");
   const score = page.locator("#score");
   const turn = page.locator("#turn-number");
-  const { advance, vehicle, destination, order } = controls(page);
+  const { advance, vehicle, destination, order, route, confirmation } = controls(page);
   await expect(canvas).toBeVisible();
   await expectNoHorizontalScroll(page);
   const queues = page.getByRole("list", { name: "Ожидают эвакуации по районам" });
@@ -98,12 +102,13 @@ test("План А от первого приказа до итога и повт
   await expect(turn).toHaveText("1");
   await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
   await expect(page.locator("#turn-feedback")).toBeEmpty();
-  const help = page.getByText("Как играть", { exact: true });
-  await help.focus();
-  await page.keyboard.press("Enter");
+  const help = page.getByRole("button", { name: "Как играть", exact: true });
+  await help.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Как играть" })).toBeVisible();
   await expect(page.getByText(/За ход каждая машина проезжает один участок/)).toBeVisible();
   await expect(page.getByText(/После последнего доступного хода маршрут закроется/)).toBeVisible();
-  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Закрыть", exact: true }).click();
+  await expect(help).toBeFocused();
   await expect(score).toHaveText("0 / 108");
   await page.getByText("Прогноз закрытий", { exact: true }).click();
   await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Закрыт/ }).getByRole("cell")).toHaveText(["4", "6"]);
@@ -115,11 +120,11 @@ test("План А от первого приказа до итога и повт
   await clickMarker(canvas, markers.bus1Start);
   await expect(vehicle("Автобус А1")).toHaveAttribute("aria-pressed", "true");
   await clickMarker(canvas, markers.hospital);
-  await expect(vehicle("Автобус А1")).toContainText("→ Больница");
+  await expect(route("Автобус А1")).toContainText("Развязка → Больница");
   await order("Автобус А2", "Развязка");
   await vehicle("Паром").click();
   await clickMarker(canvas, markers.embankment);
-  await expect(vehicle("Паром")).toContainText("→ Набережная");
+  await expect(route("Паром")).toContainText("→ Набережная");
   await advance.click();
   await expect(turn).toHaveText("2");
   await expect(score).toHaveText("0 / 108");
@@ -134,7 +139,7 @@ test("План А от первого приказа до итога и повт
   await page.setViewportSize({ width: initialViewport.width <= 600 ? 540 : 700, height: 820 });
   await expect.poll(async () => (await canvas.boundingBox())?.width).not.toBe(initialCanvas.width);
   await clickMarker(canvas, markers.junction);
-  await expect(vehicle("Автобус А1")).toContainText("→ Развязка");
+  await expect(route("Автобус А1")).toContainText("→ Развязка");
   await page.setViewportSize(initialViewport);
   await expect.poll(async () => (await canvas.boundingBox())?.width).toBeCloseTo(initialCanvas.width, 0);
   await expectNoHorizontalScroll(page);
@@ -150,7 +155,7 @@ test("План А от первого приказа до итога и повт
   await page.keyboard.press("Enter");
   await destination("Убежище").focus();
   await page.keyboard.press("Enter");
-  await expect(vehicle("Автобус А1")).toContainText("→ Убежище");
+  await expect(route("Автобус А1")).toContainText("→ Убежище");
   await order("Паром", "Набережная");
   await expect(advance).toBeDisabled();
   const keepClosed = page.getByRole("radio", { name: "Оставить закрытым" });
@@ -164,7 +169,7 @@ test("План А от первого приказа до итога и повт
 
   await vehicle("Паром").click();
   await clickMarker(canvas, markers.shelter);
-  await expect(vehicle("Паром")).toContainText("→ Убежище");
+  await expect(route("Паром")).toContainText("→ Убежище");
   await confirmIncompleteTurn(page);
   await expect(turn).toHaveText("5");
   await expect(score).toHaveText("72 / 108");
@@ -172,14 +177,18 @@ test("План А от первого приказа до итога и повт
   await expect(page.locator("#turn-feedback")).toContainText("С хода 5 проезд закрыт: мост.");
   await vehicle("Автобус А1").click();
   await expect(destination("Развязка")).toBeHidden();
+  await expect(route("Автобус А1")).toContainText("Ждёт автоматически");
+  await expect(route("Автобус А2")).toContainText("Ждёт автоматически");
 
   await order("Паром", "Набережная");
-  await confirmIncompleteTurn(page);
+  await expect(page.locator("#order-count")).toHaveText("3 из 3 готовы");
+  await advance.click();
+  await expect(confirmation).toBeHidden();
   await expect(turn).toHaveText("6");
   await expect(score).toHaveText("72 / 108");
   await clickMarker(canvas, markers.shelter);
-  await expect(vehicle("Паром")).toContainText("→ Убежище");
-  await confirmIncompleteTurn(page);
+  await expect(route("Паром")).toContainText("→ Убежище");
+  await advance.click();
 
   const results = page.getByRole("region", { name: "Итоги эвакуации" });
   await expect(results).toBeVisible();
@@ -232,14 +241,14 @@ test("План Б: прогноз можно менять до подтверж�
   await expectNoHorizontalScroll(page);
   const turn = page.locator("#turn-number");
   const score = page.locator("#score");
-  const { advance, vehicle, destination, order } = controls(page);
+  const { advance, vehicle, destination, order, route, confirmation } = controls(page);
   const keepClosed = page.getByRole("radio", { name: "Оставить закрытым" });
   const open = page.getByRole("radio", { name: "Открыть водосброс" });
   const forecasts = page.getByRole("table", { name: "Последний доступный ход" });
 
   await vehicle("Автобус А1").click();
   await clickMarker(page.locator("#map canvas"), markers.embankment);
-  await expect(vehicle("Автобус А1")).toContainText("→ Набережная");
+  await expect(route("Автобус А1")).toContainText("→ Набережная");
   await order("Автобус А2", "Развязка");
   await order("Паром", "Набережная");
   await advance.click();
@@ -258,7 +267,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(page.locator("#order-status")).toContainText("выбери режим водосброса");
   await order("Автобус А1", "Убежище");
   await order("Паром", "Набережная");
-  const before = await page.locator("#vehicles").innerText();
+  const before = await page.locator("#selected-routes").innerText();
   const journalBefore = await page.locator("#journal").innerText();
 
   await open.focus();
@@ -277,7 +286,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(score).toHaveText("36 / 108");
   await expect(page.locator("#turn-feedback")).toContainText("Доставлено в убежище: 36 чел.");
   await expect(page.locator("#turn-guide")).toContainText("раньше закрывает паромную переправу");
-  await expect(page.locator("#vehicles")).toHaveText(before, { useInnerText: true });
+  await expect(page.locator("#selected-routes")).toHaveText(before, { useInnerText: true });
   await expect(page.locator("#journal")).toHaveText(journalBefore, { useInnerText: true });
 
   await confirmIncompleteTurn(page);
@@ -299,19 +308,22 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(routeStatus(page, "Переправа")).toHaveText("Закрыто");
   await expect(page.locator("#turn-feedback")).toContainText("С хода 5 проезд закрыт: переправа.");
   await expect(destination("Набережная")).toBeHidden();
+  await expect(route("Паром")).toContainText("Ждёт автоматически");
 
   await order("Автобус А1", "Больница");
-  await confirmIncompleteTurn(page);
+  await advance.click();
+  await expect(confirmation).toContainText("Без приказа: Автобус А2.");
+  await confirmation.getByRole("button", { name: "Всё равно выполнить" }).click();
   await expect(turn).toHaveText("6");
   await order("Автобус А1", "Развязка");
   await order("Автобус А2", "Развязка");
-  await confirmIncompleteTurn(page);
+  await advance.click();
   await expect(turn).toHaveText("7");
   await expect(score).toHaveText("72 / 108");
   await expect(vehicle("Автобус А1")).toContainText("18/18 мест занято");
   await order("Автобус А1", "Убежище");
   await order("Автобус А2", "Больница");
-  await confirmIncompleteTurn(page);
+  await advance.click();
   await expect(turn).toHaveText("8");
   await expect(score).toHaveText("90 / 108");
   await order("Автобус А2", "Развязка");
@@ -348,18 +360,18 @@ test("План Б: прогноз можно менять до подтверж�
 test("Ход без всех приказов требует подтверждения, а явное ожидание считается приказом", async ({ page }) => {
   await page.goto("./");
   const turn = page.locator("#turn-number");
-  const { advance, confirmation, vehicle, destination, order } = controls(page);
+  const { advance, confirmation, vehicle, wait, order, route } = controls(page);
   const bus1 = vehicle("Автобус А1");
   const bus2 = vehicle("Автобус А2");
-  await expect(bus1).toContainText("Без приказа");
-  await expect(destination("Ждать")).toHaveAttribute("aria-pressed", "false");
+  await expect(route("Автобус А1")).toContainText("Без приказа");
+  await expect(wait).toHaveAttribute("aria-pressed", "false");
   await order("Автобус А1", "Больница");
   await bus2.click();
-  await destination("Ждать").click();
-  await expect(bus2).toContainText("Ждать");
+  await wait.click();
+  await expect(route("Автобус А2")).toContainText("Ждать");
   await expect(bus1).toHaveClass(/planned/);
   await expect(bus2).toHaveClass(/planned/);
-  await expect(destination("Ждать")).toHaveAttribute("aria-pressed", "true");
+  await expect(wait).toHaveAttribute("aria-pressed", "true");
   await advance.click();
   await expect(confirmation).toBeVisible();
   await expect(confirmation).toContainText("Без приказа: Паром.");
@@ -367,14 +379,14 @@ test("Ход без всех приказов требует подтвержд�
   await page.keyboard.press("Escape");
   await expect(confirmation).toBeHidden();
   await expect(turn).toHaveText("1");
-  await expect(bus1).toContainText("→ Больница");
-  await expect(bus2).toContainText("Ждать");
+  await expect(route("Автобус А1")).toContainText("→ Больница");
+  await expect(route("Автобус А2")).toContainText("Ждать");
   await vehicle("Паром").click();
-  await destination("Ждать").click();
+  await wait.click();
   await advance.click();
   await expect(turn).toHaveText("2");
   await expect(confirmation).toBeHidden();
-  await expect(bus1).toContainText("Без приказа");
+  await expect(route("Автобус А1")).toContainText("Без приказа");
   await expect(page.locator("#vehicles .planned")).toHaveCount(0);
 });
 
@@ -382,10 +394,10 @@ test("Удержание Enter выполняет только один ход",
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("./");
   const turn = page.locator("#turn-number");
-  const { advance, confirmation, vehicle, destination } = controls(page);
+  const { advance, confirmation, vehicle, wait } = controls(page);
   for (const name of ["Автобус А1", "Автобус А2", "Паром"]) {
     await vehicle(name).click();
-    await destination("Ждать").click();
+    await wait.click();
   }
   await expect(advance).toBeEnabled();
   await advance.focus();
@@ -413,22 +425,22 @@ test("Удержание Enter выполняет только один ход",
 
 test("Встречные автобусы блокируют ход, приказ можно снять", async ({ page }) => {
   await page.goto("./");
-  const { advance, vehicle, destination, order } = controls(page);
+  const { advance, vehicle, wait, order, route } = controls(page);
   await order("Автобус А1", "Убежище");
   await order("Автобус А2", "Развязка");
   await vehicle("Паром").click();
-  await destination("Ждать").click();
+  await wait.click();
   await advance.dblclick();
   await expect(page.locator("#turn-number")).toHaveText("2");
   await order("Автобус А1", "Развязка");
   await order("Автобус А2", "Убежище");
   await expect(advance).toBeDisabled();
   await expect(page.locator("#order-status")).toContainText("На мосту два приказа");
-  await expect(vehicle("Автобус А1")).toContainText("конфликт на мосту");
-  await expect(vehicle("Автобус А2")).toContainText("конфликт на мосту");
+  await expect(route("Автобус А1")).toContainText("конфликт на мосту");
+  await expect(route("Автобус А2")).toContainText("конфликт на мосту");
   await expect(page.locator("#score")).toHaveText("0 / 108");
   await vehicle("Автобус А1").click();
-  await destination("Ждать").click();
+  await wait.click();
   await expect(advance).toBeEnabled();
   await confirmIncompleteTurn(page);
   await expect(page.locator("#score")).toHaveText("18 / 108");
@@ -452,7 +464,7 @@ test("Ассеты и лицензии доступны локально, зву
   await sound.click();
   await expect(sound).toHaveAttribute("aria-pressed", "true");
 
-  await destination("Больница").click();
+  await destination("Больница").press("Enter");
   await expect.poll(cues).toEqual(["click_001.ogg"]);
   await confirmIncompleteTurn(page);
   await expect.poll(cues).toEqual(["click_001.ogg", "confirmation_001.ogg"]);

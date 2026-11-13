@@ -14,7 +14,10 @@
           <h1>Пока открыт мост</h1>
           <p class="instruction">Вывези жителей в убежище до закрытия переправ.</p>
         </div>
-        <button type="button" id="sound-toggle" class="sound-toggle" aria-pressed="false" aria-label="Звуки игры">Звук выкл.</button>
+        <div class="intro-actions">
+          <button type="button" id="show-help" aria-haspopup="dialog" aria-controls="game-help">Как играть</button>
+          <button type="button" id="sound-toggle" class="sound-toggle" aria-pressed="false" aria-label="Звуки игры">Звук выкл.</button>
+        </div>
       </header>
 
       <fieldset id="floodgate-choice" class="floodgate-choice" aria-describedby="floodgate-instruction" hidden>
@@ -54,6 +57,7 @@
               <span class="asset-icon icon-people" aria-hidden="true"></span>
               <strong id="score"></strong>
             </p>
+            <div id="destinations" class="map-keyboard" role="group" aria-label="Назначить маршрут с клавиатуры"></div>
           </div>
           <div class="map-legend">
             <span><i class="available-key" aria-hidden="true"></i>Доступный путь</span>
@@ -82,19 +86,15 @@
             </div>
             <p id="turn-guide" class="turn-guide"></p>
             <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
-            <h3 id="destination-heading" class="destination-heading">Куда направить</h3>
-            <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
+            <div class="route-plan" aria-labelledby="route-plan-title">
+              <div class="orders-heading">
+                <h3 id="route-plan-title">Выбранные маршруты</h3>
+                <button type="button" id="wait-order" aria-pressed="false">Ждать</button>
+              </div>
+              <ul id="selected-routes" aria-labelledby="route-plan-title"></ul>
+            </div>
             <p id="order-status" class="hint" role="status"></p>
             <button type="button" id="advance" class="primary" aria-describedby="order-status">Выполнить ход</button>
-            <details class="game-help">
-              <summary>Как играть</summary>
-              <ul>
-                <li>Выбери машину и назначь соседний узел или «Ждать». Стрелка показывает маршрут, галочка — что действие уже назначено.</li>
-                <li>За ход каждая машина проезжает один участок. У неё 18 мест. Пустая машина забирает людей перед выездом, а счёт растёт после прибытия в убежище.</li>
-                <li>Через мост за ход проезжает один автобус в любом направлении. После последнего доступного хода маршрут закроется.</li>
-                <li>На третьем ходу выбери режим водосброса. Открытие продлит работу моста, но сократит время работы парома.</li>
-              </ul>
-            </details>
           </div>
           <section id="result" aria-labelledby="result-title" hidden>
             <h2 id="result-title" tabindex="-1">Итоги эвакуации</h2>
@@ -118,6 +118,19 @@
       </details>
       <footer class="credits"><a href="%BASE_URL%assets/CREDITS.txt">Авторы и лицензии ассетов</a> · <span id="build-version"></span></footer>
     </main>
+    <dialog id="game-help" class="game-help" aria-labelledby="game-help-title">
+      <h2 id="game-help-title">Как играть</h2>
+      <ol>
+        <li>Выбери автобус или паром на карте либо в панели приказов. Нажми на подсвеченный пункт или «Ждать». Если проехать некуда, транспорт ждёт автоматически.</li>
+        <li>С клавиатуры перемещай фокус клавишей Tab и подтверждай выбор клавишей Enter. Кнопки пунктов появляются внизу карты, когда получают фокус.</li>
+        <li>Проверь выбранные маршруты и нажми «Выполнить ход». За ход каждая машина проезжает один участок. Пустая машина забирает до 18 человек перед выездом. Люди засчитываются по прибытии в убежище.</li>
+        <li>Через мост за ход проезжает один автобус в любом направлении. После последнего доступного хода маршрут закроется.</li>
+        <li>На третьем ходу выбери режим водосброса. Открытие продлит работу моста, но сократит время работы парома.</li>
+      </ol>
+      <form method="dialog">
+        <button type="submit" autofocus>Закрыть</button>
+      </form>
+    </dialog>
     <dialog id="unassigned-dialog" aria-labelledby="unassigned-title" aria-describedby="unassigned-message">
       <h2 id="unassigned-title">Выполнить ход без всех приказов?</h2>
       <p id="unassigned-message"></p>

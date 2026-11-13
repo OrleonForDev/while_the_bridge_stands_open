@@ -47,6 +47,7 @@ h1 {
 
 h2 { font-size: 1.1rem; }
 .instruction { margin-top: 0.55rem; color: var(--muted); }
+.intro-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.87rem; }
 .sound-toggle { min-width: 7.2rem; font-size: 0.87rem; }
 
 .layout {
@@ -257,19 +258,52 @@ h2 { font-size: 1.1rem; }
   line-height: 1.45;
 }
 
-.game-help { margin-top: 0.85rem; font-size: 0.83rem; color: var(--muted); }
 summary { color: var(--accent); cursor: pointer; font-weight: 600; }
-.game-help ul { margin: 0.45rem 0 0; padding-left: 1.2rem; line-height: 1.45; }
-.game-help li + li { margin-top: 0.25rem; }
+.game-help ol { padding-inline-start: 1.25rem; line-height: 1.5; }
+.game-help li + li { margin-top: 0.55rem; }
 
 .panel, .journal { padding: 1rem; }
 .orders-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.4rem; }
 .order-count { color: var(--muted); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
 .vehicles { display: grid; gap: 0.45rem; margin-block: 0.85rem; }
-.destination-heading { margin: 0 0 0.45rem; font-size: 0.85rem; }
-.destinations { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.destinations button { font-size: 0.82rem; min-height: 2.25rem; }
-.destinations .wait-order:not([aria-pressed="true"]) { border-style: dashed; }
+.map-keyboard {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+.map-keyboard:not(:focus-within) {
+  inset-inline-end: auto;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+.route-plan { border-top: 1px solid var(--border); padding-top: 0.65rem; }
+.route-plan h3 { margin: 0; font-size: 0.85rem; }
+#wait-order { min-height: 2.1rem; font-size: 0.8rem; }
+.route-plan ul { margin: 0.45rem 0 0; padding: 0; list-style: none; }
+.vehicle-order {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: baseline;
+  padding: 0.35rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.vehicle-order + .vehicle-order { border-top: 1px solid var(--border); }
+.vehicle-order strong { color: var(--ink); }
+.vehicle-order.planned { color: #234aa0; }
+.vehicle-order.conflict { color: var(--error); }
 
 button {
   min-height: 2.6rem;
@@ -321,11 +355,9 @@ button:disabled { opacity: 0.55; cursor: default; }
 .credits a { color: var(--accent); }
 .vehicles span { color: var(--muted); font-size: 0.77rem; font-weight: 500; }
 .vehicle-occupancy { justify-self: end; font-variant-numeric: tabular-nums; }
-.vehicle-order { text-align: end; overflow-wrap: anywhere; }
-.vehicles button.planned .vehicle-order, .vehicles .vehicle-order span { color: #206341; font-weight: 700; }
 .vehicles button[aria-pressed="true"] { box-shadow: inset 3px 0 var(--accent); }
 .vehicles button.conflict { background: #f9e9e1; border-color: var(--error); }
-.vehicles button.conflict .vehicle-order, .vehicles button.conflict .vehicle-order span, .hint.error { color: var(--error); }
+.hint.error { color: var(--error); }
 
 .hint { color: var(--muted); font-size: 0.89rem; line-height: 1.35; }
 .panel .hint { margin-top: 0.6rem; }
@@ -398,7 +430,6 @@ th:first-child { text-align: left; overflow-wrap: anywhere; }
   .routes li { padding-inline: 0.55rem; }
   .routes li strong { font-size: 0.76rem; }
   .routes li span { font-size: 0.73rem; }
-  .destinations button { min-height: 2.75rem; }
   .district-queues {
     position: static;
     display: flex;
