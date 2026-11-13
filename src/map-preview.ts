@@ -6,7 +6,6 @@ import type { GameState, TurnEvent, TurnOrders } from "./game/turn.ts";
 const { map, nodes, routes, vehicles } = firstScenario;
 const nodeIds = Object.keys(nodes) as NodeId[];
 const accent = 0x11675e;
-const availableColor = 0x3b7d6d;
 const plannedColor = 0x234aa0;
 const availableGlow = 0x9ecdb9;
 const nodeOutline = 0x81938a;
@@ -134,8 +133,8 @@ export class MapPreview extends Phaser.Scene {
 
   create() {
     this.drawTerrain();
-    this.roads = this.add.graphics();
     this.availability = this.add.graphics();
+    this.roads = this.add.graphics();
     this.arrows = this.add.graphics();
 
     for (const kind of ["bus", "ferry"]) {
@@ -173,13 +172,14 @@ export class MapPreview extends Phaser.Scene {
         ((from === origin && available.includes(to)) || (to === origin && available.includes(from)));
       const isSelectedOrder = (from === origin && to === selectedDestination) ||
         (to === origin && from === selectedDestination);
-      this.roads.lineStyle(route.id === "bridge" ? 20 : 14, 0xf9f8f1);
+      const casingWidth = route.id === "bridge" ? 20 : 14;
+      this.roads.lineStyle(casingWidth, 0xf9f8f1);
       strokePath(this.roads, path, closed || ferry);
-      const lineColor = closed || conflict ? blocked : isAvailable ? availableColor : ferry ? 0x719398 : 0x9aa79f;
-      this.roads.lineStyle(conflict || isAvailable ? 8 : 5, lineColor);
+      const lineColor = closed || conflict ? blocked : ferry ? 0x719398 : 0x9aa79f;
+      this.roads.lineStyle(conflict ? 8 : 5, lineColor);
       strokePath(this.roads, path, closed || ferry);
       if (isAvailable && !isSelectedOrder && !closed && !conflict) {
-        this.availability.lineStyle(22, availableGlow, 0.6);
+        this.availability.lineStyle(casingWidth + 16, availableGlow, 0.8);
         strokePath(this.availability, path, ferry);
       }
       if (closed) {
@@ -210,10 +210,9 @@ export class MapPreview extends Phaser.Scene {
 
     for (const [id, { marker, zone }] of this.markers) {
       const isAvailable = !resolving && available.includes(id);
-      const current = !resolving && !state.endReason && id === origin;
       const planned = plannedStops.has(id);
-      marker.setFillStyle(planned ? 0xe5edff : isAvailable || current ? 0xe8f2e9 : 0xf9f8f1);
-      marker.setStrokeStyle(planned || isAvailable ? 7 : 3, planned ? plannedColor : isAvailable || current ? availableColor : nodeOutline);
+      marker.setFillStyle(planned ? 0xe5edff : 0xf9f8f1);
+      marker.setStrokeStyle(planned ? 7 : 3, planned ? plannedColor : nodeOutline);
       if (isAvailable && id !== selectedDestination) {
         this.availability.lineStyle(9, availableGlow);
         this.availability.strokeCircle(marker.x, marker.y, 49);
