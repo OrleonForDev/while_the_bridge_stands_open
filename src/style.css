@@ -116,6 +116,30 @@ h2 { font-size: 1.1rem; }
   pointer-events: none;
 }
 
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  padding: 0.5rem 0.9rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.map-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.map-legend i { width: 1.25rem; height: 0.25rem; border-radius: 0.25rem; }
+.available-key { background: #11675e; box-shadow: 0 0 0 2px #bce5d3; }
+.planned-key { position: relative; background: #234aa0; }
+.planned-key::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0.28rem solid transparent;
+  border-inline-start-color: #234aa0;
+  border-inline-end: 0;
+}
+
 .routes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

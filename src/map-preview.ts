@@ -7,6 +7,8 @@ const { map, nodes, routes, vehicles } = firstScenario;
 const nodeIds = Object.keys(nodes) as NodeId[];
 const ink = 0x243c39;
 const accent = 0x11675e;
+const plannedColor = 0x234aa0;
+const availableGlow = 0x72c4a3;
 const blocked = 0x9a422e;
 const paper = 0xf1f0e8;
 const emptyTransport = "#536961";
@@ -32,7 +34,7 @@ type VehicleMarker = {
   group: Phaser.GameObjects.Container;
   fill: Phaser.GameObjects.Image | undefined;
   occupancy: Phaser.GameObjects.Text;
-  selection: Phaser.GameObjects.Rectangle;
+  selection: Phaser.GameObjects.Graphics;
   checkmark: Phaser.GameObjects.Text;
   zone: Phaser.GameObjects.Zone;
 };
@@ -92,7 +94,9 @@ function strokePath(graphics: Phaser.GameObjects.Graphics, path: readonly Point[
 }
 
 function drawArrow(graphics: Phaser.GameObjects.Graphics, path: readonly Point[], color: number) {
-  graphics.lineStyle(8, color);
+  graphics.lineStyle(15, 0xf9f8f1);
+  strokePath(graphics, path, false);
+  graphics.lineStyle(9, color);
   strokePath(graphics, path, false);
   const tip = path[path.length - 1];
   const previous = path[path.length - 2];
@@ -108,11 +112,13 @@ function drawArrow(graphics: Phaser.GameObjects.Graphics, path: readonly Point[]
 
 export class MapPreview extends Phaser.Scene {
   private roads!: Phaser.GameObjects.Graphics;
+  private availability!: Phaser.GameObjects.Graphics;
   private arrows!: Phaser.GameObjects.Graphics;
   private readonly markers = new Map<NodeId, NodeMarker>();
   private readonly queues = new Map<DistrictId, Phaser.GameObjects.Text>();
   private readonly routeText = new Map<ScenarioRouteId, Phaser.GameObjects.Text>();
   private readonly transport = new Map<VehicleId, VehicleMarker>();
+  private readonly reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   constructor(
     private readonly onDestination: (id: NodeId) => void,
@@ -134,6 +140,7 @@ export class MapPreview extends Phaser.Scene {
   create() {
     this.drawTerrain();
     this.roads = this.add.graphics();
+    this.availability = this.add.graphics();
     this.arrows = this.add.graphics();
 
     for (const [id, position] of Object.entries(routeLabels)) {
@@ -157,8 +164,15 @@ export class MapPreview extends Phaser.Scene {
 
   renderState({ state, moves, selected, available, conflicts, resolving }: MapView) {
     this.roads.clear();
+    this.tweens.killTweensOf(this.availability);
+    this.availability.clear().setAlpha(0.65);
     this.arrows.clear();
     const origin = state.vehicles[selected].node;
+    const plannedStops = new Set<NodeId>();
+    for (const destination of Object.values(moves)) {
+      if (destination) plannedStops.add(destination);
+    }
+    const selectedDestination = moves[selected];
     for (const route of routes) {
       const closed = state.closedRoutes.includes(route.id);
       const conflict = conflicts.includes(route.id);
@@ -167,11 +181,17 @@ export class MapPreview extends Phaser.Scene {
       const path = routePoints(route.id, from, to);
       const isAvailable = !resolving &&
         ((from === origin && available.includes(to)) || (to === origin && available.includes(from)));
+      const isSelectedOrder = (from === origin && to === selectedDestination) ||
+        (to === origin && from === selectedDestination);
       this.roads.lineStyle(route.id === "bridge" ? 20 : 14, 0xf9f8f1);
       strokePath(this.roads, path, closed || ferry);
       const lineColor = closed || conflict ? blocked : isAvailable ? accent : ferry ? 0x4c7178 : 0x74827b;
       this.roads.lineStyle(conflict || isAvailable ? 8 : 5, lineColor);
       strokePath(this.roads, path, closed || ferry);
+      if (isAvailable && !isSelectedOrder && !closed && !conflict) {
+        this.availability.lineStyle(22, availableGlow, 0.6);
+        strokePath(this.availability, path, ferry);
+      }
       if (closed) {
         const segment = Math.floor((path.length - 1) / 2);
         const start = path[segment];
@@ -201,24 +221,40 @@ export class MapPreview extends Phaser.Scene {
       const previous = path[path.length - 2];
       const angle = Math.atan2(tip.y - previous.y, tip.x - previous.x);
       path[path.length - 1] = { x: tip.x - 53 * Math.cos(angle), y: tip.y - 53 * Math.sin(angle) };
-      drawArrow(this.arrows, path, conflicts.includes(route.id) ? blocked : accent);
+      drawArrow(this.arrows, path, conflicts.includes(route.id) ? blocked : plannedColor);
     }
 
     for (const [id, { marker, zone }] of this.markers) {
       const isAvailable = !resolving && available.includes(id);
       const current = !resolving && !state.endReason && id === origin;
-      marker.setFillStyle(isAvailable || current ? 0xe3f1e8 : 0xf9f8f1);
-      marker.setStrokeStyle(isAvailable ? 7 : 3, isAvailable || current ? accent : 0x677a71);
+      const planned = plannedStops.has(id);
+      marker.setFillStyle(planned ? 0xe5edff : isAvailable || current ? 0xe3f1e8 : 0xf9f8f1);
+      marker.setStrokeStyle(planned || isAvailable ? 7 : 3, planned ? plannedColor : isAvailable || current ? accent : 0x677a71);
+      if (isAvailable && id !== selectedDestination) {
+        this.availability.lineStyle(9, availableGlow);
+        this.availability.strokeCircle(marker.x, marker.y, 49);
+      }
       if (isAvailable) zone.setInteractive({ useHandCursor: true });
       else zone.disableInteractive();
+    }
+    if (!resolving && available.some((id) => id !== selectedDestination) && !this.reduceMotion.matches) {
+      this.tweens.add({
+        targets: this.availability,
+        alpha: { from: 0.35, to: 0.95 },
+        duration: 1050,
+        ease: "Sine.easeInOut",
+        yoyo: true,
+        repeat: 2,
+      });
     }
     this.updateQueues(state.waiting);
 
     for (const vehicle of vehicleIds) {
       const { group, selection, checkmark, zone } = this.transport.get(vehicle)!;
       const { x, y } = parkedPosition(state, vehicle);
-      group.setPosition(x, y).setDepth(0);
+      group.setPosition(x, y);
       const active = vehicle === selected && !state.endReason;
+      group.setDepth(active ? 1 : 0);
       this.updateOccupancy(vehicle, state.vehicles[vehicle].passengers?.count ?? 0);
       selection.setVisible(active);
       checkmark.setVisible(moves[vehicle] !== undefined);
@@ -242,7 +278,7 @@ export class MapPreview extends Phaser.Scene {
       if (to === "embankment") waypoints.pop();
       const destination = parkedPosition(nextState, vehicle);
       for (const { x, y } of [...waypoints, destination]) path.lineTo(x, y);
-      group.setDepth(1);
+      group.setDepth(2);
       checkmark.setVisible(false);
       return { group, path, point: new Phaser.Math.Vector2() };
     });
@@ -363,14 +399,17 @@ export class MapPreview extends Phaser.Scene {
       fontFamily, fontSize: "28px", fontStyle: "bold", color: "#243b39",
       stroke: "#f1f0e8", strokeThickness: 4,
     }).setOrigin(0.5);
-    const selection = this.add.rectangle(icon ? iconX : 0, 25, 32, 4, accent).setVisible(false);
+    const selection = this.add.graphics();
+    selection.fillStyle(0xf2fcf5).fillRoundedRect(-48, -51, 96, 79, 13);
+    selection.lineStyle(5, accent).strokeRoundedRect(-48, -51, 96, 79, 13);
+    selection.setVisible(false);
     const zone = this.add.zone(0, -10, kind === "bus" ? 100 : 72, 72).setInteractive({ useHandCursor: true })
       .on("pointerup", () => this.onVehicle(id));
     const checkmark = this.add.text(kind === "bus" ? 40 : 32, -20, "✓", {
       fontFamily, fontSize: "22px", fontStyle: "bold", color: "#206341",
       stroke: "#f1f0e8", strokeThickness: 3,
     }).setOrigin(0.5).setVisible(false);
-    const group = this.add.container(0, 0, [...parts, occupancy, selection, checkmark, zone]);
+    const group = this.add.container(0, 0, [selection, ...parts, occupancy, checkmark, zone]);
     this.transport.set(id, { group, fill, occupancy, selection, checkmark, zone });
   }
 }
