@@ -4,6 +4,7 @@ import { districtIds, firstScenario, vehicleIds } from "./game/scenario.ts";
 import type { FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
 import { advanceTurn, createInitialState, getEvacuationReport, getRouteForecast, validateTurn } from "./game/turn.ts";
 import type { EndReason, TurnEvent, TurnOrders } from "./game/turn.ts";
+import { GameSounds } from "./game-sounds";
 import "./style.css";
 
 const { map, nodes, routes, vehicles } = firstScenario;
@@ -14,6 +15,15 @@ const planning = document.querySelector<HTMLElement>("#planning")!;
 const result = document.querySelector<HTMLElement>("#result")!;
 const resultTitle = document.querySelector<HTMLHeadingElement>("#result-title")!;
 const loading = document.querySelector<HTMLElement>("#loading")!;
+const soundToggle = document.querySelector<HTMLButtonElement>("#sound-toggle")!;
+const sounds = new GameSounds();
+
+soundToggle.addEventListener("click", () => {
+  sounds.enabled = !sounds.enabled;
+  soundToggle.setAttribute("aria-pressed", String(sounds.enabled));
+  soundToggle.textContent = sounds.enabled ? "Звук вкл." : "Звук выкл.";
+  if (!sounds.enabled) sounds.stop();
+});
 const advance = document.querySelector<HTMLButtonElement>("#advance")!;
 const restart = document.querySelector<HTMLButtonElement>("#restart")!;
 const orderStatus = document.querySelector<HTMLElement>("#order-status")!;
@@ -97,6 +107,7 @@ function assign(destination: NodeId | null) {
   if (resolving || state.endReason !== null) return;
   if (destination !== null && !availableDestinations(selected).includes(destination)) return;
   moves = { ...moves, [selected]: destination };
+  sounds.play("order");
   render();
 }
 
@@ -200,7 +211,10 @@ function render() {
     const destination = moves[id];
     const conflict = conflicts.some((issue) => issue.vehicles.includes(id));
     const title = document.createElement("strong");
-    title.textContent = vehicleName(id);
+    const icon = document.createElement("span");
+    icon.className = "asset-icon icon-" + vehicles[id].kind;
+    icon.setAttribute("aria-hidden", "true");
+    title.append(icon, vehicleName(id));
     const location = document.createElement("span");
     location.textContent = nodes[current.node].label + " · " + (current.passengers?.count ?? 0) + "/" + vehicles[id].seats + " мест занято";
     const order = document.createElement("span");
@@ -345,6 +359,7 @@ advance.addEventListener("click", async (event) => {
   draftFloodgate = undefined;
   moves = {};
   showTurnFeedback(next.events, turn);
+  sounds.play(next.events.some((event) => event.kind === "route-closed") ? "closure" : "turn");
   addJournalEntries(next.events, turn);
   render();
   if (state.endReason !== null) {
@@ -373,14 +388,20 @@ const scene = new MapPreview(assign, selectVehicle, () => {
   render();
 });
 
-new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: mapElement,
-  width: map.width,
-  height: map.height,
-  backgroundColor: "#f3eee1",
-  scene,
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  banner: false,
-  audio: { noAudio: true },
-});
+async function startGame() {
+  // Phaser draws labels to textures, so load the font before creating the scene.
+  await document.fonts.load('700 38px "Bridge Inter"', "Убежище").catch(() => []);
+  new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: mapElement,
+    width: map.width,
+    height: map.height,
+    backgroundColor: "#f3eee1",
+    scene,
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+    banner: false,
+    audio: { noAudio: true },
+  });
+}
+
+void startGame();

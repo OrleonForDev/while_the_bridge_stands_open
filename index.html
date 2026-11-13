@@ -14,9 +14,12 @@
           <h1>Пока открыт мост</h1>
           <p class="instruction">Вывези жителей в убежище до закрытия переправ.</p>
         </div>
-        <div class="counters" aria-live="polite">
-          <p><span>Ход</span> <strong id="turn-number">1</strong></p>
-          <p><span>В убежище</span> <strong id="score"></strong></p>
+        <div class="game-header-controls">
+          <button type="button" id="sound-toggle" class="sound-toggle" aria-pressed="false" aria-label="Звуки игры">Звук выкл.</button>
+          <div class="counters" aria-live="polite">
+            <p><span>Ход</span> <strong id="turn-number">1</strong></p>
+            <p><span>В убежище</span> <strong id="score"></strong></p>
+          </div>
         </div>
       </header>
 
@@ -74,7 +77,7 @@
               <thead><tr><th scope="col">Район</th><th scope="col">Вывезено</th><th scope="col">Ждут</th><th scope="col">В пути</th></tr></thead>
               <tbody id="district-results"></tbody>
             </table>
-            <button type="button" id="restart" class="primary">Повторить</button>
+            <button type="button" id="restart" class="primary"><span class="asset-icon icon-rotate" aria-hidden="true"></span>Повторить</button>
           </section>
           <p id="loading" role="status">Карта загружается…</p>
         </div>
@@ -85,6 +88,7 @@
         <p id="journal-empty" class="hint">Здесь появятся события первого хода.</p>
         <ol id="journal"></ol>
       </section>
+      <footer class="credits"><a href="%BASE_URL%assets/CREDITS.txt">Авторы и лицензии ассетов</a></footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

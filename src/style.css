@@ -1,8 +1,16 @@
+@font-face {
+  font-family: "Bridge Inter";
+  src: url("/assets/inter/InterVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   background: #faf7ee;
   color: #243b39;
-  font-family: Inter, "Segoe UI", sans-serif;
+  font-family: "Bridge Inter", "Segoe UI", sans-serif;
   --ink: #243b39;
   --muted: #4c6159;
   --accent: #126a62;
@@ -39,6 +47,8 @@ h1 {
 
 h2 { font-size: 1.2rem; }
 .instruction { margin-top: 0.55rem; color: var(--muted); }
+.game-header-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 1rem; }
+.sound-toggle { min-width: 7.2rem; font-size: 0.87rem; }
 .counters { display: flex; gap: 1.2rem; }
 .counters p { display: grid; gap: 0.2rem; }
 .counters span { color: var(--muted); font-size: 0.85rem; }
@@ -161,6 +171,23 @@ button:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px 
 button:disabled { opacity: 0.55; cursor: default; }
 
 .vehicles button { display: grid; gap: 0.2rem; text-align: left; }
+.vehicles strong { display: flex; align-items: center; gap: 0.45rem; }
+
+.asset-icon {
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background: currentColor;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.icon-bus { --icon: url("/assets/tabler/bus.svg"); }
+.icon-ferry { --icon: url("/assets/tabler/ship.svg"); }
+.icon-rotate { --icon: url("/assets/tabler/rotate.svg"); }
+#restart { display: flex; align-items: center; justify-content: center; gap: 0.45rem; }
+.credits { margin-top: 1rem; font-size: 0.85rem; }
+.credits a { color: var(--accent); }
 .vehicles span { color: var(--muted); font-size: 0.85rem; font-weight: 500; }
 .vehicles button.conflict { border-color: var(--error); }
 .vehicles button.conflict span:last-child, .hint.error { color: var(--error); }

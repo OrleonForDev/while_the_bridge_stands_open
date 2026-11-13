@@ -9,7 +9,7 @@ const ink = 0x243b39;
 const accent = 0x0c7565;
 const blocked = 0x983825;
 const paper = 0xf3eee1;
-const fontFamily = '"Inter", "Segoe UI", sans-serif';
+const fontFamily = '"Bridge Inter", "Segoe UI", sans-serif';
 
 type Point = { x: number; y: number };
 type MapView = {
@@ -101,6 +101,12 @@ export class MapPreview extends Phaser.Scene {
     super("evacuation-map");
   }
 
+  preload() {
+    const icons = import.meta.env.BASE_URL + "assets/tabler/";
+    this.load.svg("vehicle-bus", icons + "bus.svg", { scale: 2 });
+    this.load.svg("vehicle-ferry", icons + "ship.svg", { scale: 2 });
+  }
+
   create() {
     this.drawTerrain();
     this.roads = this.add.graphics();
@@ -180,7 +186,9 @@ export class MapPreview extends Phaser.Scene {
       for (const [index, vehicle] of present.entries()) {
         const { group, badge, zone } = this.transport.get(vehicle)!;
         group.setPosition(nodes[id].x + (index - (present.length - 1) / 2) * 72, nodes[id].y - 66);
-        badge.setFillStyle(vehicle === selected && !state.endReason ? accent : ink);
+        const active = vehicle === selected && !state.endReason;
+        badge.setFillStyle(active ? 0xd5eddf : 0xfffbf0);
+        badge.setStrokeStyle(active ? 5 : 3, active ? accent : ink);
         zone.input!.enabled = !state.endReason;
       }
     }
@@ -234,11 +242,25 @@ export class MapPreview extends Phaser.Scene {
 
   private drawVehicle(id: VehicleId) {
     const { label, kind } = firstScenario.vehicles[id];
-    const badge = kind === "bus" ? this.add.rectangle(0, 0, 58, 43, ink) : this.add.circle(0, 0, 25, ink);
-    const text = this.add.text(0, 0, label, { fontFamily, fontSize: "27px", fontStyle: "bold", color: "#ffffff" }).setOrigin(0.5);
+    const badge = kind === "bus"
+      ? this.add.rectangle(0, 0, 65, 43, 0xfffbf0)
+      : this.add.circle(0, 0, 25, 0xfffbf0);
+    const key = "vehicle-" + kind;
+    const hasIcon = this.textures.exists(key);
+    const parts: Phaser.GameObjects.GameObject[] = [badge];
+    if (hasIcon) {
+      const icon = this.add.image(kind === "bus" ? -15 : 0, 0, key).setDisplaySize(29, 29);
+      parts.push(icon);
+    }
+    if (kind === "bus" || !hasIcon) {
+      const text = this.add.text(hasIcon ? 15 : 0, 0, label, {
+        fontFamily, fontSize: "22px", fontStyle: "bold", color: "#243b39",
+      }).setOrigin(0.5);
+      parts.push(text);
+    }
     const zone = this.add.zone(0, 0, 66, 46).setInteractive({ useHandCursor: true })
       .on("pointerup", () => this.onVehicle(id));
-    const group = this.add.container(0, 0, [badge, text, zone]);
+    const group = this.add.container(0, 0, [...parts, zone]);
     this.transport.set(id, { group, badge, zone });
   }
 }
