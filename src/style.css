@@ -155,7 +155,7 @@ h2 { font-size: 1.1rem; }
 .route-info p { margin: 0.22rem 0 0; }
 .route-info-forecast { color: var(--muted); }
 
-@container (max-width: 480px) {
+@container (max-width: 820px) {
   .route-info[data-route] {
     position: relative;
     inset: auto;
