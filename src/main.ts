@@ -288,7 +288,10 @@ function render() {
     item.classList.toggle("closed", closed);
   }
 
-  scene.renderState({ state, moves, selected, available, forecastMode, conflicts: conflicts.map((issue) => issue.route) });
+  scene.renderState({
+    state, moves, selected, available, forecastMode, resolving,
+    conflicts: conflicts.map((issue) => issue.route),
+  });
 }
 
 function describeEvent(event: TurnEvent): string | null {
@@ -400,11 +403,11 @@ async function executeTurn() {
   const next = advanceTurn(state, turnOrders());
   if (!next.ok) return;
   const restoreFocus = document.activeElement === advance;
-  if (!reduceMotion.matches && next.events.some((event) => event.kind === "moved")) {
+  const movements = next.events.filter((event) => event.kind === "moved");
+  if (!reduceMotion.matches && movements.length > 0) {
     resolving = true;
     render();
-    scene.flashOrders();
-    await new Promise<void>((done) => window.setTimeout(done, 280));
+    await scene.animateMoves(movements, next.state);
     resolving = false;
   }
   state = next.state;
