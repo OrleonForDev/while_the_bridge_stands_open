@@ -28,6 +28,9 @@ soundToggle.addEventListener("click", () => {
   if (!sounds.enabled) sounds.stop();
 });
 const advance = document.querySelector<HTMLButtonElement>("#advance")!;
+const unassignedDialog = document.querySelector<HTMLDialogElement>("#unassigned-dialog")!;
+const unassignedMessage = document.querySelector<HTMLElement>("#unassigned-message")!;
+const confirmAdvance = document.querySelector<HTMLButtonElement>("#confirm-advance")!;
 const restart = document.querySelector<HTMLButtonElement>("#restart")!;
 const orderStatus = document.querySelector<HTMLElement>("#order-status")!;
 const turnGuide = document.querySelector<HTMLElement>("#turn-guide")!;
@@ -225,6 +228,7 @@ function render() {
     const button = vehicleButtons.get(id)!;
     const current = state.vehicles[id];
     const destination = moves[id];
+    const planned = destination !== undefined;
     const conflict = conflicts.some((issue) => issue.vehicles.includes(id));
     const title = document.createElement("strong");
     const icon = document.createElement("span");
@@ -234,14 +238,22 @@ function render() {
     const location = document.createElement("span");
     location.textContent = nodes[current.node].label + " · " + (current.passengers?.count ?? 0) + "/" + vehicles[id].seats + " мест занято";
     const order = document.createElement("span");
-    order.textContent = destination ? "→ " + nodes[destination].label : "Ждать";
+    order.id = id + "-order";
+    order.className = "vehicle-order";
+    order.textContent = destination ? "→ " + nodes[destination].label : planned ? "Ждать" : "Без приказа";
     if (conflict) order.textContent += " · конфликт на мосту";
+    if (planned) {
+      const checkmark = document.createElement("span");
+      checkmark.setAttribute("aria-hidden", "true");
+      checkmark.textContent = "✓ ";
+      order.prepend(checkmark);
+    }
     button.replaceChildren(title, location, order);
     button.disabled = resolving;
     button.setAttribute("aria-pressed", String(id === selected));
+    button.setAttribute("aria-describedby", conflict ? order.id + " order-status" : order.id);
+    button.classList.toggle("planned", planned);
     button.classList.toggle("conflict", conflict);
-    if (conflict) button.setAttribute("aria-describedby", "order-status");
-    else button.removeAttribute("aria-describedby");
   }
 
   destinationGroup.setAttribute("aria-label", "Назначить маршрут · " + vehicleName(selected));
@@ -250,7 +262,7 @@ function render() {
     button.disabled = resolving;
     button.setAttribute("aria-pressed", String(moves[selected] === id));
   }
-  wait.setAttribute("aria-pressed", String(!moves[selected]));
+  wait.setAttribute("aria-pressed", String(moves[selected] === null));
 
   wait.disabled = resolving;
   advance.disabled = resolving || finished || issues.length > 0;
@@ -259,12 +271,12 @@ function render() {
     orderStatus.textContent = "На мосту два приказа. Измени маршрут одного автобуса.";
   } else if (isDecisionTurn() && !draftFloodgate) {
     orderStatus.textContent = "Чтобы выполнить ход, выбери режим водосброса.";
-  } else if (moves[selected]) {
+  } else if (moves[selected] !== undefined) {
     orderStatus.textContent = "Приказ принят. Можно назначить маршрут другой машине или выполнить ход.";
   } else {
     orderStatus.textContent = available.length
       ? "Выбери соседний узел на карте или в списке."
-      : "Для этого транспорта открытых маршрутов нет.";
+      : "Открытых маршрутов нет. Можно назначить «Ждать».";
   }
   orderStatus.classList.toggle("error", conflicts.length > 0);
 
@@ -358,12 +370,32 @@ function showResult(reason: EndReason) {
   resultTitle.focus();
 }
 
-advance.addEventListener("keydown", (event) => {
+function preventRepeatedEnter(event: KeyboardEvent) {
   if (event.key === "Enter" && event.repeat) event.preventDefault();
+}
+
+advance.addEventListener("keydown", preventRepeatedEnter);
+unassignedDialog.addEventListener("keydown", preventRepeatedEnter);
+
+advance.addEventListener("click", (event) => {
+  if (resolving || unassignedDialog.open || event.detail > 1) return;
+  const unassigned = vehicleIds.filter((id) => moves[id] === undefined);
+  if (unassigned.length) {
+    const names = unassigned.map(vehicleName).join(", ");
+    unassignedMessage.textContent = "Без приказа: " + names + ". Этот транспорт останется на месте.";
+    unassignedDialog.showModal();
+    return;
+  }
+  void executeTurn();
 });
 
-advance.addEventListener("click", async (event) => {
-  if (resolving || event.detail > 1) return;
+confirmAdvance.addEventListener("click", (event) => {
+  if (!unassignedDialog.open || event.detail > 1) return;
+  unassignedDialog.close();
+  void executeTurn();
+});
+
+async function executeTurn() {
   const turn = state.turn;
   const next = advanceTurn(state, turnOrders());
   if (!next.ok) return;
@@ -387,7 +419,7 @@ advance.addEventListener("click", async (event) => {
   } else if (restoreFocus && (document.activeElement === document.body || document.activeElement === advance)) {
     (isDecisionTurn() ? floodgateInputs[0] : advance).focus();
   }
-});
+}
 
 restart.addEventListener("click", () => {
   state = createInitialState();

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="44" viewBox="0 0 64 44">
+  <path fill="#fff" fill-rule="evenodd" d="
+    M9 4h38c4 0 7 2 9 6l6 12v10a3 3 0 0 1-3 3h-4a9 9 0 0 0-17 0H25a9 9 0 0 0-17 0H5a3 3 0 0 1-3-3V11a7 7 0 0 1 7-7Z
+    M9 10a2 2 0 0 0-2 2v9h10V10H9Z
+    M21 10v11h10V10H21Z
+    M35 10v11h9V10h-9Z
+    M48 10v11h9l-4-8a5 5 0 0 0-5-3Z
+    M55 26v4h4v-4h-4Z"/>
+  <path fill="#fff" fill-rule="evenodd" d="
+    M17 28a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z
+    M47 28a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm0 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>
+</svg>

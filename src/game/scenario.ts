@@ -42,7 +42,7 @@ export const firstScenario = {
     junction: { label: "Развязка", symbol: "Р", x: 1012, y: 378 },
     hospital: { label: "Больница", symbol: "Б", x: 1250, y: 148 },
     school: { label: "Школа", symbol: "Ш", x: 1482, y: 378 },
-    embankment: { label: "Набережная", symbol: "Н", x: 1212, y: 676 },
+    embankment: { label: "Набережная", symbol: "Н", x: 865, y: 676 },
   } satisfies Record<NodeId, MapNode>,
   initialWaiting: { hospital: 36, school: 18, embankment: 54 } satisfies Record<DistrictId, number>,
   vehicles: {
