@@ -90,7 +90,7 @@ test("План А от первого приказа до итога и повт
   if (page.viewportSize().width <= 600) {
     await expect(queues).toHaveCSS("clip-path", "none");
     await expect(queues.getByRole("listitem")).toHaveText([
-      "Больница ждут 36", "Школа ждут 18", "Набережная ждут 54",
+      "Больница ждут 36", "Школа ждут 0", "Набережная ждут 54",
     ]);
   }
   await expect(page.getByRole("button", { name: "Звуки игры" })).toHaveAttribute("aria-pressed", "false");
@@ -117,7 +117,7 @@ test("План А от первого приказа до итога и повт
   await clickMarker(canvas, [110, 110]);
   await expect(roadInfo).toBeHidden();
   await expect(lowerRoad).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
+  await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек сразу по прибытии");
   await expect(page.locator("#turn-feedback")).toBeEmpty();
   const help = page.getByRole("button", { name: "Как играть", exact: true });
   await help.press("Enter");
@@ -143,12 +143,27 @@ test("План А от первого приказа до итога и повт
   await vehicle("Паром").click();
   await clickMarker(canvas, markers.embankment);
   await expect(route("Паром")).toContainText("→ Набережная");
+  const phases = page.locator("#map-context");
+  await phases.evaluate((element) => {
+    const seen = [];
+    const observer = new MutationObserver(() => {
+      seen.push(element.textContent);
+      element.dataset.testPhases = JSON.stringify(seen);
+    });
+    observer.observe(element, { childList: true });
+  });
   await advance.click();
   await expect(turn).toHaveText("2");
+  const seen = JSON.parse(await phases.getAttribute("data-test-phases"));
+  expect(seen.slice(0, 2)).toEqual(["Транспорт в пути", "Идёт посадка"]);
   await expect(score).toHaveText("0 / 108");
-  await expect(vehicle("Автобус А2")).toContainText("18/18 мест занято");
-  await expect(queues.getByRole("listitem").nth(1)).toHaveText("Школа ждут 0");
-  await expect(page.locator("#turn-feedback")).toContainText("Ход 1 выполнен. Посадка: 18 чел. Доставлено в убежище: 0 чел.");
+  for (const name of ["Автобус А1", "Автобус А2", "Паром"]) {
+    await expect(vehicle(name)).toContainText("18/18 мест занято");
+  }
+  await expect(queues.getByRole("listitem")).toHaveText([
+    "Больница ждут 18", "Школа ждут 0", "Набережная ждут 36",
+  ]);
+  await expect(page.locator("#turn-feedback")).toContainText("Ход 1 выполнен. Посадка: 36 чел. Доставлено в убежище: 0 чел.");
   await expect(page.locator("#turn-guide")).toContainText("Через мост за ход проезжает один автобус.");
 
   await vehicle("Автобус А1").click();
@@ -236,7 +251,7 @@ test("План А от первого приказа до итога и повт
   await results.getByRole("button", { name: "Повторить" }).click();
   await expect(results).toBeHidden();
   await expect(turn).toHaveText("1");
-  await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
+  await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек сразу по прибытии");
   await expect(page.locator("#turn-feedback")).toBeEmpty();
   await expect(score).toHaveText("0 / 108");
   await expect(page.locator("#journal > li")).toHaveCount(0);
@@ -245,7 +260,8 @@ test("План А от первого приказа до итога и повт
   for (const [name, location] of [["Автобус А1", "Развязка"], ["Автобус А2", "Школа"], ["Паром", "Убежище"]]) {
     await expect(vehicle(name)).toHaveAttribute("aria-pressed", "false");
     await expect(vehicle(name).locator(".vehicle-location")).toHaveText(location);
-    await expect(vehicle(name).locator(".vehicle-occupancy")).toHaveText("0/18 мест занято");
+    const occupied = name === "Автобус А2" ? 18 : 0;
+    await expect(vehicle(name).locator(".vehicle-occupancy")).toHaveText(occupied + "/18 мест занято");
   }
   await expect(advance).toBeEnabled();
 
@@ -280,6 +296,10 @@ test("План Б: прогноз можно менять до подтверж�
   await order("Автобус А2", "Развязка");
   await order("Паром", "Набережная");
   await advance.click();
+  await expect(vehicle("Автобус А1")).toContainText("18/18 мест занято");
+  await expect(vehicle("Паром")).toContainText("18/18 мест занято");
+  await expect(page.getByRole("list", { name: "Ожидают эвакуации по районам" }).getByRole("listitem").last())
+    .toHaveText("Набережная ждут 18");
   await order("Автобус А1", "Развязка");
   await order("Автобус А2", "Убежище");
   await order("Паром", "Убежище");

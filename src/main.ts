@@ -288,7 +288,7 @@ function renderFloodgateChoice() {
 
 function describeNextStep() {
   if (state.turn === 1) {
-    return "Назначь маршруты автобусам и парому, затем выполни ход. Пустая машина забирает до 18 человек перед выездом.";
+    return "Назначь маршруты автобусам и парому, затем выполни ход. Пустой транспорт забирает до 18 человек сразу по прибытии.";
   }
   if (state.turn === 2) {
     return "Пассажиры засчитываются только в убежище. Через мост за ход проезжает один автобус.";
@@ -541,7 +541,9 @@ async function executeTurn() {
   if (!reduceMotion.matches && next.events.some((event) => event.kind === "moved")) {
     resolving = true;
     render();
-    await scene.animateMoves(next.events, next.state);
+    await scene.animateTurn(next.events, next.state, () => {
+      mapContext.textContent = "Идёт посадка";
+    });
     resolving = false;
   }
   state = next.state;

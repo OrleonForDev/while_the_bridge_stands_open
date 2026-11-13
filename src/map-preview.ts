@@ -16,8 +16,10 @@ const occupiedTransport = "#925119";
 const fontFamily = '"Bridge Inter", "Segoe UI", sans-serif';
 const transportSpacing = 104;
 const movementDuration = 950;
+const boardingDuration = 620;
 
 type Point = { x: number; y: number };
+type Boarding = Extract<TurnEvent, { kind: "boarded" }>;
 type MapView = {
   state: GameState;
   moves: NonNullable<TurnOrders["moves"]>;
@@ -246,12 +248,21 @@ export class MapPreview extends Phaser.Scene {
     }
   }
 
-  animateMoves(events: readonly TurnEvent[], nextState: GameState) {
-    this.updateQueues(nextState.waiting);
+  async animateTurn(events: readonly TurnEvent[], nextState: GameState, onBoarding: () => void) {
+    await this.animateMoves(events, nextState);
     for (const event of events) {
-      if (event.kind === "boarded") this.updateOccupancy(event.vehicle, event.passengers.count);
+      if (event.kind === "evacuated") this.updateOccupancy(event.vehicle, 0);
     }
 
+    const boardings = events.filter((event) => event.kind === "boarded");
+    if (boardings.length > 0) {
+      this.arrows.clear();
+      onBoarding();
+      await this.animateBoarding(boardings, nextState.waiting);
+    }
+  }
+
+  private animateMoves(events: readonly TurnEvent[], nextState: GameState) {
     const movements = events.filter((event) => event.kind === "moved");
     const trips = movements.map(({ vehicle, route, from, to }) => {
       const { group, checkmark } = this.transport.get(vehicle)!;
@@ -281,6 +292,70 @@ export class MapPreview extends Phaser.Scene {
           }
         },
         onComplete: () => resolve(),
+      });
+    });
+  }
+
+  private animateBoarding(boardings: readonly Boarding[], remaining: GameState["waiting"]) {
+    const trips = boardings.map(({ vehicle, passengers: { district, count } }) => {
+      const { group, occupancy } = this.transport.get(vehicle)!;
+      const stop = nodes[district];
+      const destination = { x: group.x + occupancy.x, y: group.y + 4 };
+      const figureCount = Math.min(count, 3);
+      const side = destination.x < stop.x ? -1 : 1;
+      const figures = Array.from({ length: figureCount }, (_, index) => ({
+        graphic: this.add.graphics().setDepth(3),
+        start: { x: stop.x + side * (29 + index * 17), y: stop.y - 12 },
+        delay: index * 0.15,
+      }));
+      return { vehicle, district, count, destination, figures, displayed: 0 };
+    });
+
+    const draw = (progress: number) => {
+      const waiting = { ...remaining };
+      for (const trip of trips) {
+        let boarded = 0;
+        for (const { graphic, start, delay } of trip.figures) {
+          const step = Phaser.Math.Clamp((progress - delay) / 0.7, 0, 1);
+          const position = Phaser.Math.Easing.Sine.InOut(step);
+          const stride = Math.sin(step * Math.PI * 6) * 4;
+          graphic.setPosition(
+            Phaser.Math.Linear(start.x, trip.destination.x, position),
+            Phaser.Math.Linear(start.y, trip.destination.y, position),
+          );
+          graphic.setAlpha(Math.min(1, (1 - step) * 6));
+          graphic.clear().fillStyle(0x243b39).fillCircle(0, -11, 5);
+          graphic.lineStyle(4, 0x243b39);
+          graphic.lineBetween(0, -5, 0, 5);
+          graphic.lineBetween(-6, 3 + stride, 6, 3 - stride);
+          graphic.lineBetween(-5 + stride, 13, 0, 5);
+          graphic.lineBetween(0, 5, 5 - stride, 13);
+          boarded += Phaser.Math.Clamp((step - 0.75) / 0.25, 0, 1);
+        }
+        const occupancy = Math.round(trip.count * boarded / trip.figures.length);
+        if (occupancy !== trip.displayed) {
+          trip.displayed = occupancy;
+          this.updateOccupancy(trip.vehicle, occupancy);
+        }
+        waiting[trip.district] += trip.count - occupancy;
+      }
+      this.updateQueues(waiting);
+    };
+
+    draw(0);
+    return new Promise<void>((resolve) => {
+      this.tweens.addCounter({
+        from: 0,
+        to: 1,
+        duration: boardingDuration,
+        onUpdate: (tween) => draw(tween.getValue()!),
+        onComplete: () => {
+          draw(1);
+          for (const { figures } of trips) {
+            for (const { graphic } of figures) graphic.destroy();
+          }
+          resolve();
+        },
       });
     });
   }

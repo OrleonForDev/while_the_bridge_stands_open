@@ -95,7 +95,7 @@ for (const plan of plans) {
     assert.deepEqual(steps[2].state.vehicles, {
       "bus-1": { node: "shelter", passengers: null },
       "bus-2": { node: "shelter", passengers: null },
-      ferry: { node: "embankment", passengers: null },
+      ferry: { node: "embankment", passengers: { district: "embankment", count: 18 } },
     });
     assert.deepEqual(state.evacuated, plan.evacuated);
     assert.deepEqual(state.waiting, plan.waiting);
@@ -203,11 +203,12 @@ test("Недоступный сосед и неподходящий трансп
   ]);
 });
 
-test("Ожидание не сажает людей, а полный автобус сохраняет район пассажиров", () => {
-  const { state: waiting, events } = play(createInitialState());
+test("Ожидание сохраняет пассажиров, а полный автобус не забирает людей в другом районе", () => {
+  const initial = createInitialState();
+  const { state: waiting, events } = play(initial);
   assert.deepEqual(events, []);
-  assert.equal(waiting.waiting.school, 18);
-  assert.equal(waiting.vehicles["bus-2"].passengers, null);
+  assert.deepEqual(waiting.waiting, initial.waiting);
+  assert.deepEqual(waiting.vehicles, initial.vehicles);
 
   const { state, steps } = playTurns([
     { moves: { "bus-2": "junction" } },
@@ -224,21 +225,32 @@ test("Ожидание не сажает людей, а полный автоб�
   assert.equal(state.vehicles["bus-2"].passengers, null);
 });
 
-test("Общую очередь первым забирает А1, люди в автобусе остаются в итогах", () => {
-  const { state: turn7 } = playTurns([
+test("Посадка происходит в ход прибытия и отражается в очереди до отъезда", () => {
+  const { state, events } = play(createInitialState(), opening[0]);
+  assert.deepEqual(events.map(({ kind }) => kind), ["moved", "moved", "moved", "boarded", "boarded"]);
+  assert.deepEqual(state.waiting, { hospital: 18, school: 0, embankment: 36 });
+  assert.deepEqual(state.vehicles["bus-1"], {
+    node: "hospital", passengers: { district: "hospital", count: 18 },
+  });
+  assert.deepEqual(state.vehicles.ferry, {
+    node: "embankment", passengers: { district: "embankment", count: 18 },
+  });
+  const departure = play(state, opening[1]);
+  assert.equal(departure.events.some(({ kind }) => kind === "boarded"), false);
+});
+
+test("При одновременном прибытии А1 первым забирает остаток общей очереди", () => {
+  const { state: turn6 } = playTurns([
     ...opening.slice(0, 2), { ...opening[2], floodgate: "open" },
     { moves: { "bus-1": "junction" } },
-    { moves: { "bus-1": "hospital", "bus-2": "junction" } },
-    { moves: { "bus-2": "hospital" } },
+    { moves: { "bus-2": "junction" } },
   ]);
-  const orders = { moves: { "bus-2": "junction", "bus-1": "junction" } };
-  const { state, events } = play(turn7, orders);
+  const orders = { moves: { "bus-2": "hospital", "bus-1": "hospital" } };
+  const { state, events } = play(turn6, orders);
   assert.deepEqual(events.filter(({ kind }) => kind === "boarded"), [
-    { kind: "boarded", turn: 7, vehicle: "bus-1", passengers: { district: "hospital", count: 18 } },
+    { kind: "boarded", turn: 6, vehicle: "bus-1", passengers: { district: "hospital", count: 18 } },
   ]);
-  assert.equal(state.vehicles["bus-2"].passengers, null);
-  assert.equal(state.vehicles["bus-2"].node, "junction");
-  assert.equal(state.endReason, null);
+  assert.deepEqual(state.vehicles["bus-2"], { node: "hospital", passengers: null });
   assert.deepEqual(getEvacuationReport(state).districts.hospital, {
     initial: 36, evacuated: 18, waiting: 0, inTransit: 18,
   });
@@ -249,9 +261,13 @@ test("Последняя высадка может завершить эваку
   const { state: finished, events } = play({
     ...state,
     turn: 2,
-    waiting: { hospital: 0, school: 0, embankment: 18 },
+    waiting: { hospital: 0, school: 0, embankment: 0 },
     evacuated: { hospital: 36, school: 18, embankment: 36 },
-    vehicles: { ...state.vehicles, ferry: { node: "embankment", passengers: null } },
+    vehicles: {
+      ...state.vehicles,
+      "bus-2": { node: "shelter", passengers: null },
+      ferry: { node: "embankment", passengers: { district: "embankment", count: 18 } },
+    },
   }, { moves: { ferry: "shelter" } });
   assert.equal(finished.turn, 2);
   assert.equal(getEvacuationReport(finished).total.evacuated, 108);
@@ -272,10 +288,10 @@ test("Повтор восстанавливает старт, одинаковы
   assert.equal(reset.turn, 1);
   assert.equal(reset.floodgate, null);
   assert.deepEqual(reset.closedRoutes, []);
-  assert.deepEqual(reset.waiting, { hospital: 36, school: 18, embankment: 54 });
+  assert.deepEqual(reset.waiting, { hospital: 36, school: 0, embankment: 54 });
   assert.deepEqual(reset.vehicles, {
     "bus-1": { node: "junction", passengers: null },
-    "bus-2": { node: "school", passengers: null },
+    "bus-2": { node: "school", passengers: { district: "school", count: 18 } },
     ferry: { node: "shelter", passengers: null },
   });
 });

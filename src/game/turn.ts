@@ -36,7 +36,8 @@ export type TurnIssue =
 
 export type TurnEvent =
   | { kind: "floodgate-chosen"; turn: number; mode: FloodgateMode }
-  | { kind: "boarded" | "evacuated"; turn: number; vehicle: VehicleId; passengers: Passengers }
+  | { kind: "boarded"; turn: number; vehicle: VehicleId; passengers: Passengers }
+  | { kind: "evacuated"; turn: number; vehicle: VehicleId; passengers: Passengers }
   | { kind: "moved"; turn: number; vehicle: VehicleId; route: ScenarioRouteId; from: NodeId; to: NodeId }
   | { kind: "route-closed"; turn: number; route: ScenarioRouteId }
   | { kind: "game-ended"; turn: number; reason: EndReason };
@@ -53,17 +54,18 @@ type PlannedMove = {
 };
 
 export function createInitialState(): GameState {
-  const atStart = (id: VehicleId): VehicleState => ({
-    node: firstScenario.vehicles[id].startNode,
-    passengers: null,
-  });
+  const waiting = { ...firstScenario.initialWaiting };
+  const atStart = (id: VehicleId): VehicleState => {
+    const node = firstScenario.vehicles[id].startNode;
+    return { node, passengers: boardAt(waiting, id, node) };
+  };
 
   return {
     turn: 1,
     floodgate: null,
     closedRoutes: [],
     vehicles: { "bus-1": atStart("bus-1"), "bus-2": atStart("bus-2"), ferry: atStart("ferry") },
-    waiting: { ...firstScenario.initialWaiting },
+    waiting,
     evacuated: { hospital: 0, school: 0, embankment: 0 },
     endReason: null,
   };
@@ -164,6 +166,15 @@ function isDistrict(node: NodeId): node is DistrictId {
   return Object.hasOwn(firstScenario.initialWaiting, node);
 }
 
+function boardAt(waiting: Record<DistrictId, number>, vehicle: VehicleId, node: NodeId): Passengers | null {
+  if (!isDistrict(node)) return null;
+  const count = Math.min(waiting[node], firstScenario.vehicles[vehicle].seats);
+  if (count === 0) return null;
+
+  waiting[node] -= count;
+  return { district: node, count };
+}
+
 function finishOrOpenNextTurn(state: GameState, events: TurnEvent[]): GameState {
   function finish(snapshot: GameState, reason: EndReason): GameState {
     events.push({ kind: "game-ended", turn: snapshot.turn, reason });
@@ -207,21 +218,19 @@ export function advanceTurn(state: GameState, orders: TurnOrders = {}): TurnResu
     events.push({ kind: "floodgate-chosen", turn, mode: orders.floodgate });
   }
 
-  // Moves are resolved against the starting positions. Board in vehicle priority order.
-  for (const { vehicle, from } of moves) {
-    if (vehicles[vehicle].passengers !== null || !isDistrict(from)) continue;
-    const count = Math.min(waiting[from], firstScenario.vehicles[vehicle].seats);
-    if (count === 0) continue;
-
-    const passengers = { district: from, count };
-    waiting[from] -= count;
-    vehicles[vehicle] = { ...vehicles[vehicle], passengers };
-    events.push({ kind: "boarded", turn, vehicle, passengers });
-  }
-
   for (const { vehicle, route, from, to } of moves) {
     vehicles[vehicle] = { ...vehicles[vehicle], node: to };
     events.push({ kind: "moved", turn, vehicle, route: route.id, from, to });
+  }
+
+  // Simultaneous arrivals share the queue in vehicle priority order.
+  for (const { vehicle, to } of moves) {
+    if (vehicles[vehicle].passengers !== null) continue;
+    const passengers = boardAt(waiting, vehicle, to);
+    if (passengers === null) continue;
+
+    vehicles[vehicle] = { node: to, passengers };
+    events.push({ kind: "boarded", turn, vehicle, passengers });
   }
 
   for (const { vehicle, to } of moves) {
