@@ -12,13 +12,23 @@
       <header class="intro">
         <div>
           <h1>Пока открыт мост</h1>
-          <p class="instruction">Вывези жителей в убежище до закрытия переправ.</p>
+          <p id="game-goal" class="instruction">Вывези жителей в убежище до закрытия переправ.</p>
         </div>
         <div class="intro-actions">
+          <button type="button" id="skip-lessons" hidden>К тестовому уровню</button>
           <button type="button" id="show-help" aria-haspopup="dialog" aria-controls="game-help">Как играть</button>
           <button type="button" id="sound-toggle" class="sound-toggle" aria-pressed="false" aria-label="Звуки игры">Звук выкл.</button>
         </div>
       </header>
+
+      <section id="lesson-guide" class="lesson-guide" aria-labelledby="lesson-title" hidden>
+        <h2 id="lesson-title"></h2>
+        <p id="lesson-instruction" role="status" aria-atomic="true"></p>
+        <div id="lesson-actions">
+          <button type="button" id="lesson-map-action" hidden></button>
+          <button type="button" id="lesson-next" class="primary" hidden></button>
+        </div>
+      </section>
 
       <fieldset id="floodgate-choice" class="floodgate-choice" aria-describedby="floodgate-instruction" hidden>
         <legend id="floodgate-title" tabindex="-1">Риск затопления</legend>
@@ -53,6 +63,7 @@
           <div class="map-view">
             <div class="map-surface">
               <div id="map" aria-hidden="true"></div>
+              <span id="lesson-arrow" class="lesson-arrow" aria-hidden="true" hidden>↓</span>
               <div id="route-labels" role="group" aria-label="Участки на карте" hidden></div>
               <p id="shelter-count" class="shelter-count" aria-live="polite" aria-atomic="true" hidden>
                 <span class="sr-only">В убежище</span>
@@ -133,6 +144,7 @@
         <li>Проверь выбранные маршруты и нажми «Выполнить ход». За ход каждая машина проезжает один участок. Пустой транспорт забирает до 18 человек сразу по прибытии. Автобус А2 уже взял пассажиров у школы. Люди засчитываются по прибытии в убежище.</li>
         <li>Через мост за ход проезжает один автобус в любом направлении. После последнего доступного хода маршрут закроется.</li>
       </ol>
+      <button type="button" id="replay-lessons" hidden>Пройти обучение</button>
     </dialog>
     <dialog id="unassigned-dialog" aria-labelledby="unassigned-title" aria-describedby="unassigned-message">
       <h2 id="unassigned-title">Выполнить ход без всех приказов?</h2>

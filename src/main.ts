@@ -2,7 +2,9 @@ import Phaser from "phaser";
 import { version } from "../package.json";
 import { MapPreview } from "./map-preview";
 import { districtIds, firstScenario, vehicleIds } from "./game/scenario.ts";
-import type { FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import type { FloodgateMode, NodeId, Scenario, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import { lessons, lessonStep } from "./lesson-guide";
+import type { LessonStep } from "./lesson-guide";
 import { advanceTurn, createInitialState, getEvacuationReport, getRouteForecast, validateTurn } from "./game/turn.ts";
 import type { EndReason, TurnEvent, TurnOrders } from "./game/turn.ts";
 import { GameSounds } from "./game-sounds";
@@ -60,15 +62,34 @@ const resultRows = document.querySelector<HTMLTableSectionElement>("#district-re
 const journal = document.querySelector<HTMLOListElement>("#journal")!;
 const journalEmpty = document.querySelector<HTMLElement>("#journal-empty")!;
 const mapContext = document.querySelector<HTMLElement>("#map-context")!;
+const gameGoal = document.querySelector<HTMLElement>("#game-goal")!;
+const lessonGuide = document.querySelector<HTMLElement>("#lesson-guide")!;
+const lessonTitle = document.querySelector<HTMLElement>("#lesson-title")!;
+const lessonInstruction = document.querySelector<HTMLElement>("#lesson-instruction")!;
+const lessonActions = document.querySelector<HTMLElement>("#lesson-actions")!;
+const lessonMapAction = document.querySelector<HTMLButtonElement>("#lesson-map-action")!;
+const lessonNext = document.querySelector<HTMLButtonElement>("#lesson-next")!;
+const lessonArrow = document.querySelector<HTMLElement>("#lesson-arrow")!;
+const skipLessons = document.querySelector<HTMLButtonElement>("#skip-lessons")!;
+const replayLessons = document.querySelector<HTMLButtonElement>("#replay-lessons")!;
 
 const floodgateChoice = document.querySelector<HTMLFieldSetElement>("#floodgate-choice")!;
 const floodgateTitle = document.querySelector<HTMLElement>("#floodgate-title")!;
+const floodgateInstruction = document.querySelector<HTMLElement>("#floodgate-instruction")!;
 const floodgateInputs = Array.from(floodgateChoice.querySelectorAll<HTMLInputElement>("input"));
 const forecastModes = ["closed", "open"] as const;
 const forecastCrossings = ["bridge", "ferry-crossing"] as const;
-const forecasts = { closed: getRouteForecast("closed"), open: getRouteForecast("open") };
-
-let state = createInitialState();
+const gameGoalText = gameGoal.textContent ?? "";
+const progressKey = "while-the-bridge-stands-open.lesson";
+const directToGame = new URLSearchParams(location.search).get("level") === "test";
+let lessonIndex = directToGame ? lessons.length : savedLessonIndex();
+let scenario: Scenario = lessons[lessonIndex]?.scenario ?? firstScenario;
+let forecasts = forecastFor(scenario);
+let state = createInitialState(scenario);
+let comparedForecasts = false;
+let guideStep: LessonStep | null = null;
+let guideControl: HTMLElement | null = null;
+let previousGuide = "";
 let resolving = false;
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let draftFloodgate: FloodgateMode | undefined;
@@ -81,6 +102,7 @@ const destinationButtons = new Map<NodeId, HTMLButtonElement>();
 const plannedRoutes = new Map<VehicleId, HTMLLIElement>();
 const queueList = document.querySelector("#district-queues")!;
 const queueCounts = new Map<(typeof districtIds)[number], Text>();
+const queueRows = new Map<(typeof districtIds)[number], HTMLLIElement>();
 for (const district of districtIds) {
   const item = document.createElement("li");
   const waiting = document.createElement("strong");
@@ -95,10 +117,40 @@ for (const district of districtIds) {
   item.append(nodes[district].label + " ", waiting);
   queueList.append(item);
   queueCounts.set(district, count);
+  queueRows.set(district, item);
 }
 
 const routeList = document.querySelector("#routes")!;
 const routeItems = new Map<ScenarioRouteId, { item: HTMLLIElement; status: HTMLElement }>();
+
+function savedLessonIndex() {
+  try {
+    const saved = localStorage.getItem(progressKey);
+    if (saved === "1") return 1;
+    if (saved === String(lessons.length)) return lessons.length;
+  } catch {
+    // The lessons also work when browser storage is unavailable.
+  }
+  return 0;
+}
+
+function setLevel(index: number) {
+  if (resolving) return;
+  lessonIndex = index;
+  scenario = lessons[index]?.scenario ?? firstScenario;
+  forecasts = forecastFor(scenario);
+  updateFloodgateTimings();
+  try {
+    localStorage.setItem(progressKey, String(index));
+  } catch {
+    // Keep the current session playable when browser storage is unavailable.
+  }
+  resetLevel();
+  const heading = index < lessons.length ? lessonTitle : document.querySelector<HTMLElement>("#map-title")!;
+  heading.tabIndex = -1;
+  heading.focus({ preventScroll: true });
+  window.scrollTo(0, 0);
+}
 
 function makeButton(parent: Element, label: string, onClick: () => void) {
   const button = document.createElement("button");
@@ -172,9 +224,14 @@ document.addEventListener("keydown", (event) => {
 
 function renderRouteInfo() {
   if (inspectedRoute === null) return;
-  const mode = state.floodgate ?? "closed";
+  const mode = state.floodgate ?? (scenario === firstScenario ? "closed" : draftFloodgate ?? "closed");
   const { lastOpenTurn, firstClosedTurn } = forecasts[mode].find(({ route }) => route === inspectedRoute)!;
-  if (lastOpenTurn === null || firstClosedTurn === null) return;
+  if (lastOpenTurn === null || firstClosedTurn === null) {
+    routeInfoTitle.textContent = routeName(inspectedRoute);
+    routeInfoDescription.textContent = "Открыт до конца урока.";
+    routeInfoForecast.textContent = "";
+    return;
+  }
 
   routeInfoTitle.textContent = routeName(inspectedRoute);
   if (state.closedRoutes.includes(inspectedRoute)) {
@@ -184,7 +241,7 @@ function renderRouteInfo() {
   }
 
   const remaining = firstClosedTurn - state.turn;
-  routeInfoDescription.textContent = lastOpenTurn >= firstScenario.maxTurns
+  routeInfoDescription.textContent = lastOpenTurn >= scenario.maxTurns
     ? "Открыт до конца партии."
     : remaining === 1 ? "Закроется после этого хода."
     : "Закроется через " + remaining + (remaining < 5 ? " хода." : " ходов.");
@@ -195,7 +252,7 @@ function availableDestinations(vehicle: VehicleId): NodeId[] {
   if (state.endReason !== null) return [];
   const from = state.vehicles[vehicle].node;
   const destinations: NodeId[] = [];
-  for (const { id, ends: [a, b], vehicleKind } of routes) {
+  for (const { id, ends: [a, b], vehicleKind } of scenario.routes) {
     if (vehicleKind !== vehicles[vehicle].kind || state.closedRoutes.includes(id)) continue;
     if (from === a) destinations.push(b);
     if (from === b) destinations.push(a);
@@ -204,11 +261,11 @@ function availableDestinations(vehicle: VehicleId): NodeId[] {
 }
 
 function unassignedVehicles() {
-  return vehicleIds.filter((id) => moves[id] === undefined && availableDestinations(id).length > 0);
+  return scenario.vehicleIds.filter((id) => moves[id] === undefined && availableDestinations(id).length > 0);
 }
 
 function isDecisionTurn() {
-  return state.endReason === null && state.turn === firstScenario.decisionTurn && state.floodgate === null;
+  return state.endReason === null && state.turn === scenario.decisionTurn && state.floodgate === null;
 }
 
 function turnOrders(): TurnOrders {
@@ -217,12 +274,14 @@ function turnOrders(): TurnOrders {
 
 function selectVehicle(id: VehicleId | null) {
   if (resolving || state.endReason !== null || (id === null && selected === null)) return;
+  if (guideStep && (guideStep.kind !== "vehicle" || guideStep.id !== id)) return;
   selected = id;
   render();
 }
 
 function assign(destination: NodeId | null) {
   if (resolving || state.endReason !== null || selected === null) return;
+  if (guideStep && (guideStep.kind !== "destination" || guideStep.id !== destination)) return;
   if (destination !== null && !availableDestinations(selected).includes(destination)) return;
   moves = { ...moves, [selected]: destination };
   sounds.play("order");
@@ -260,28 +319,47 @@ for (const route of routes) {
   routeItems.set(route.id, { item, status });
 }
 
-for (const mode of forecastModes) {
-  const [bridgeTurn, ferryTurn] = forecastCrossings.map(
-    (id) => forecasts[mode].find(({ route }) => route === id)!.lastOpenTurn,
-  );
-  const bridgeTiming = bridgeTurn === firstScenario.maxTurns
-    ? `Мост останется открыт до конца ${bridgeTurn}-го хода.`
-    : `Мост разрушится после ${bridgeTurn}-го хода.`;
-  document.querySelector("#floodgate-" + mode + "-timing")!.replaceChildren(
-    bridgeTiming, document.createElement("br"), `Паром перестанет ходить после ${ferryTurn}-го хода.`,
-  );
+function forecastFor(level: Scenario) {
+  return { closed: getRouteForecast("closed", level), open: getRouteForecast("open", level) };
 }
+
+function updateFloodgateTimings() {
+  for (const mode of forecastModes) {
+    const timing = document.querySelector("#floodgate-" + mode + "-timing")!;
+    const [bridgeTurn, ferryTurn] = forecastCrossings.map(
+      (id) => forecasts[mode].find(({ route }) => route === id)?.lastOpenTurn,
+    );
+    if (bridgeTurn == null || ferryTurn == null) {
+      timing.replaceChildren();
+      continue;
+    }
+    const bridgeTiming = scenario !== firstScenario
+      ? `Мост · по ${bridgeTurn}-й ход`
+      : bridgeTurn === scenario.maxTurns
+        ? `Мост останется открыт до конца ${bridgeTurn}-го хода.`
+        : `Мост разрушится после ${bridgeTurn}-го хода.`;
+    const ferryTiming = scenario === firstScenario
+      ? `Паром перестанет ходить после ${ferryTurn}-го хода.`
+      : `Паром · по ${ferryTurn}-й ход`;
+    timing.replaceChildren(bridgeTiming, document.createElement("br"), ferryTiming);
+  }
+}
+updateFloodgateTimings();
 
 for (const input of floodgateInputs) {
   input.addEventListener("change", () => {
     if (resolving || !isDecisionTurn() || !input.checked) return;
     draftFloodgate = input.value === "open" ? "open" : "closed";
+    if (draftFloodgate === "closed") comparedForecasts = true;
     render();
   });
 }
 
 function renderFloodgateChoice() {
   floodgateChoice.hidden = !isDecisionTurn();
+  floodgateInstruction.hidden = scenario !== firstScenario;
+  if (scenario === firstScenario) floodgateChoice.setAttribute("aria-describedby", floodgateInstruction.id);
+  else floodgateChoice.setAttribute("aria-describedby", lessonInstruction.id);
   for (const input of floodgateInputs) input.checked = input.value === draftFloodgate;
   floodgateChoice.disabled = resolving;
 }
@@ -304,29 +382,81 @@ function describeNextStep() {
   return "";
 }
 
+function renderLessonGuide(step: LessonStep | null) {
+  const lesson = lessons[lessonIndex];
+  lessonGuide.hidden = skipLessons.hidden = !lesson;
+  replayLessons.hidden = Boolean(lesson);
+  skipLessons.disabled = resolving;
+  replayLessons.disabled = resolving;
+  gameGoal.textContent = lesson?.goal ?? gameGoalText;
+  const advanceParent = lesson ? lessonActions : planning;
+  if (advance.parentElement !== advanceParent) advanceParent.append(advance);
+  if (lesson) lessonTitle.textContent = `Урок ${lessonIndex + 1} из ${lessons.length} · ${lesson.title}`;
+  const text = resolving && lesson ? "Транспорт выполняет приказ." : step?.text ?? "";
+  if (text !== previousGuide) {
+    lessonInstruction.textContent = text;
+    previousGuide = text;
+  }
+  advance.hidden = Boolean(lesson && step?.kind !== "advance");
+  lessonNext.hidden = step?.kind !== "next";
+  if (!lessonNext.hidden) {
+    lessonNext.textContent = lessonIndex + 1 < lessons.length ? "Следующий урок" : "Начать тестовый уровень";
+  }
+  planning.parentElement!.hidden = step?.kind === "next";
+  lessonArrow.hidden = true;
+  lessonMapAction.hidden = true;
+  let target: HTMLElement | null = null;
+  if (step && !resolving) {
+    if (step.kind === "vehicle" || step.kind === "destination") {
+      const point = step.kind === "vehicle" ? scene.vehiclePosition(step.id) : nodes[step.id];
+      placeOnMap(lessonArrow, [point.x, point.y]);
+      lessonArrow.hidden = false;
+      lessonMapAction.textContent = step.kind === "vehicle"
+        ? "Выбрать " + (vehicles[step.id].kind === "bus" ? "автобус " + vehicles[step.id].label : "паром")
+        : "Назначить маршрут · " + nodes[step.id].label;
+      lessonMapAction.hidden = false;
+    } else if (step.kind === "floodgate") {
+      target = floodgateInputs.find(({ value }) => value === step.id)!.closest("label");
+    } else {
+      target = step.kind === "advance" ? advance : lessonNext;
+    }
+  }
+  if (target !== guideControl) {
+    guideControl?.classList.remove("lesson-target");
+    target?.classList.add("lesson-target");
+    guideControl = target;
+  }
+}
+
 function render() {
-  const available = selected === null ? [] : availableDestinations(selected);
+  const lesson = lessons[lessonIndex];
+  guideStep = lesson ? lessonStep(lesson, state, selected, moves, draftFloodgate, comparedForecasts) : null;
+  const available = guideStep
+    ? (guideStep.kind === "destination" ? [guideStep.id] : [])
+    : selected === null ? [] : availableDestinations(selected);
   const selectedOrder = selected === null ? undefined : moves[selected];
-  const issues = validateTurn(state, turnOrders());
+  const issues = validateTurn(state, turnOrders(), scenario);
   const conflicts = issues.filter((issue) => issue.kind === "route-capacity");
   const needsFloodgate = issues.some((issue) => issue.kind === "floodgate-choice-required");
   renderFloodgateChoice();
   const forecastMode = state.floodgate ?? draftFloodgate ?? "closed";
   const finished = state.endReason !== null;
-  const report = getEvacuationReport(state);
+  const report = getEvacuationReport(state, scenario);
   const unassigned = unassignedVehicles();
 
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
-  orderCount.textContent = (vehicleIds.length - unassigned.length) + " из " + vehicleIds.length + " готовы";
+  orderCount.textContent = (scenario.vehicleIds.length - unassigned.length) + " из " + scenario.vehicleIds.length + " готовы";
   mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути"
     : selected === null ? "Выбери автобус или паром" : "Выбран транспорт · " + vehicleName(selected);
+  mapContext.hidden = Boolean(lesson && !resolving);
   for (const [district, count] of queueCounts) {
     count.data = String(report.districts[district].waiting);
+    queueRows.get(district)!.hidden = scenario.initialWaiting[district] === 0;
   }
   planning.hidden = finished;
-  result.hidden = !finished;
-  const guide = describeNextStep();
+  result.hidden = !finished || Boolean(lesson);
+  const guide = lesson ? "" : describeNextStep();
   turnGuide.textContent = guide;
   turnGuide.hidden = !guide;
 
@@ -352,6 +482,8 @@ function render() {
     occupancyDescription.textContent = " мест занято";
     occupancy.append(passengerCount, occupancyDescription);
     const order = plannedRoutes.get(id)!;
+    const active = scenario.vehicleIds.includes(id);
+    button.hidden = order.hidden = !active;
     const automaticWait = !planned && !unassigned.includes(id);
     const route = document.createElement("span");
     route.textContent = destination ? nodes[current.node].label + " → " + nodes[destination].label
@@ -369,7 +501,7 @@ function render() {
     order.classList.toggle("planned", planned);
     order.classList.toggle("conflict", conflict);
     button.replaceChildren(title, occupancy, location);
-    button.disabled = resolving;
+    button.disabled = resolving || Boolean(guideStep && (guideStep.kind !== "vehicle" || guideStep.id !== id));
     button.setAttribute("aria-pressed", String(id === selected));
     location.id = id + "-location";
     occupancy.id = id + "-occupancy";
@@ -387,9 +519,9 @@ function render() {
   }
   wait.setAttribute("aria-pressed", String(selectedOrder === null));
 
-  wait.disabled = resolving || available.length === 0;
+  wait.disabled = resolving || Boolean(lesson) || available.length === 0;
   wait.title = selected === null ? "Сначала выбери транспорт" : "Оставить на месте · " + vehicleName(selected);
-  advance.disabled = resolving || finished || issues.length > 0;
+  advance.disabled = resolving || finished || issues.length > 0 || Boolean(guideStep && guideStep.kind !== "advance");
   advance.classList.toggle("awaiting-floodgate", needsFloodgate);
   advance.textContent = resolving ? "Выполняется ход…" : needsFloodgate ? "Выполнить ход · выбери водосброс" : "Выполнить ход";
   if (needsFloodgate) {
@@ -405,27 +537,30 @@ function render() {
   }
   orderStatus.classList.toggle("error", conflicts.length > 0);
 
-  for (const { route, lastOpenTurn } of forecasts[forecastMode]) {
-    const entry = routeItems.get(route);
-    if (!entry) continue;
+  for (const [route, entry] of routeItems) {
+    const lastOpenTurn = forecasts[forecastMode].find((forecast) => forecast.route === route)?.lastOpenTurn ?? null;
+    entry.item.hidden = lastOpenTurn === null;
     const closed = state.closedRoutes.includes(route);
     const lastChance = !closed && lastOpenTurn === state.turn;
-    entry.status.textContent = closed ? "Закрыто" : lastChance ? "Последний ход" : "По " + lastOpenTurn + "-й ход";
+    entry.status.textContent = closed ? "Закрыто" : lastChance ? "Последний ход" : lastOpenTurn === null ? "" : "По " + lastOpenTurn + "-й ход";
     entry.item.classList.toggle("closed", closed);
     entry.item.classList.toggle("last-chance", lastChance);
     const label = routeLabelButtons.get(route);
     if (label) {
+      label.button.hidden = !scenario.routes.some(({ id }) => id === route);
       const conflict = conflicts.some((issue) => issue.route === route);
       label.button.classList.toggle("route-warning", closed || conflict);
       label.badge.textContent = closed ? " ×" : conflict ? " !" : "";
     }
   }
+  routeList.toggleAttribute("hidden", !scenario.routes.some(({ lastOpenTurn }) => lastOpenTurn !== null));
   renderRouteInfo();
 
   scene.renderState({
-    state, moves, selected, available, resolving,
+    scenario, state, moves, selected, available, resolving,
     conflicts: conflicts.map((issue) => issue.route),
   });
+  renderLessonGuide(guideStep);
 }
 
 function describeEvent(event: TurnEvent): string | null {
@@ -491,7 +626,7 @@ const endMessages: Record<EndReason, string> = {
 };
 
 function showResult(reason: EndReason) {
-  const { districts, total } = getEvacuationReport(state);
+  const { districts, total } = getEvacuationReport(state, scenario);
   resultScore.textContent = "Вывезено " + total.evacuated + " из " + total.initial;
   resultReason.textContent = endMessages[reason];
   resultRows.replaceChildren();
@@ -515,7 +650,7 @@ advance.addEventListener("keydown", preventRepeatedEnter);
 unassignedDialog.addEventListener("keydown", preventRepeatedEnter);
 
 advance.addEventListener("click", (event) => {
-  if (resolving || unassignedDialog.open || event.detail > 1) return;
+  if (advance.disabled || resolving || unassignedDialog.open || event.detail > 1) return;
   const unassigned = unassignedVehicles();
   if (unassigned.length) {
     const names = unassigned.map(vehicleName).join(", ");
@@ -534,14 +669,14 @@ confirmAdvance.addEventListener("click", (event) => {
 
 async function executeTurn() {
   const turn = state.turn;
-  const next = advanceTurn(state, turnOrders());
+  const next = advanceTurn(state, turnOrders(), scenario);
   if (!next.ok) return;
   selected = null;
   const restoreFocus = document.activeElement === advance;
   if (!reduceMotion.matches && next.events.some((event) => event.kind === "moved")) {
     resolving = true;
     render();
-    await scene.animateTurn(next.events, next.state, () => {
+    await scene.animateTurn(scenario, next.events, next.state, () => {
       mapContext.textContent = "Идёт посадка";
     });
     resolving = false;
@@ -554,7 +689,10 @@ async function executeTurn() {
   addJournalEntries(next.events, turn);
   render();
   if (state.endReason !== null) {
-    showResult(state.endReason);
+    if (lessons[lessonIndex]) lessonNext.focus();
+    else showResult(state.endReason);
+  } else if (lessons[lessonIndex] && restoreFocus && (document.activeElement === document.body || document.activeElement === advance)) {
+    lessonMapAction.focus({ preventScroll: true });
   } else if (isDecisionTurn()) {
     floodgateTitle.focus({ preventScroll: true });
     floodgateChoice.scrollIntoView({ block: "nearest" });
@@ -563,17 +701,38 @@ async function executeTurn() {
   }
 }
 
-restart.addEventListener("click", () => {
+function resetLevel() {
   closeRouteInfo();
-  state = createInitialState();
+  state = createInitialState(scenario);
   draftFloodgate = undefined;
+  comparedForecasts = false;
   moves = {};
   selected = null;
   journal.replaceChildren();
   turnFeedback.replaceChildren();
   journalEmpty.hidden = false;
   render();
+}
+
+restart.addEventListener("click", () => {
+  resetLevel();
   vehicleButtons.get(vehicleIds[0])!.focus({ preventScroll: true });
+});
+skipLessons.addEventListener("click", () => setLevel(lessons.length));
+replayLessons.addEventListener("click", () => {
+  gameHelp.close();
+  setLevel(0);
+});
+lessonMapAction.addEventListener("keydown", preventRepeatedEnter);
+lessonMapAction.addEventListener("click", (event) => {
+  if (event.detail > 1) return;
+  if (guideStep?.kind === "vehicle") selectVehicle(guideStep.id);
+  else if (guideStep?.kind === "destination") assign(guideStep.id);
+  if (lessonMapAction.hidden && !advance.hidden) advance.focus({ preventScroll: true });
+});
+lessonNext.addEventListener("keydown", preventRepeatedEnter);
+lessonNext.addEventListener("click", (event) => {
+  if (event.detail <= 1) setLevel(lessonIndex + 1);
 });
 
 const scene = new MapPreview(assign, selectVehicle, () => {

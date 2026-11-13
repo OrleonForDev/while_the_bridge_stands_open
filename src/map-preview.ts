@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { firstScenario, districtIds, vehicleIds } from "./game/scenario.ts";
-import type { DistrictId, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import type { DistrictId, NodeId, Scenario, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
 import type { GameState, TurnEvent, TurnOrders } from "./game/turn.ts";
 
 const { map, nodes, routes, vehicles } = firstScenario;
@@ -21,6 +21,7 @@ const boardingDuration = 620;
 type Point = { x: number; y: number };
 type Boarding = Extract<TurnEvent, { kind: "boarded" }>;
 type MapView = {
+  scenario: Scenario;
   state: GameState;
   moves: NonNullable<TurnOrders["moves"]>;
   selected: VehicleId | null;
@@ -30,6 +31,7 @@ type MapView = {
 };
 type NodeMarker = {
   marker: Phaser.GameObjects.Arc;
+  drawing: Phaser.GameObjects.Container;
   zone: Phaser.GameObjects.Zone;
 };
 type VehicleMarker = {
@@ -57,9 +59,9 @@ function routePoints(id: ScenarioRouteId, from: NodeId, to: NodeId): Point[] {
   return [nodes[from], ...bends, nodes[to]];
 }
 
-function parkedPosition(state: GameState, vehicle: VehicleId): Point {
+function parkedPosition(scenario: Scenario, state: GameState, vehicle: VehicleId): Point {
   const node = state.vehicles[vehicle].node;
-  const present = vehicleIds.filter((id) => state.vehicles[id].node === node);
+  const present = scenario.vehicleIds.filter((id) => state.vehicles[id].node === node);
   const { x, y } = nodes[node];
   if (node === "embankment") {
     // Keep the ferry at the riverbank and the buses on the road side.
@@ -112,7 +114,10 @@ export class MapPreview extends Phaser.Scene {
   private availability!: Phaser.GameObjects.Graphics;
   private arrows!: Phaser.GameObjects.Graphics;
   private readonly markers = new Map<NodeId, NodeMarker>();
-  private readonly queues = new Map<DistrictId, Phaser.GameObjects.Text>();
+  private readonly queues = new Map<DistrictId, {
+    count: Phaser.GameObjects.Text;
+    drawing: Phaser.GameObjects.Container;
+  }>();
   private readonly transport = new Map<VehicleId, VehicleMarker>();
   private readonly reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -153,7 +158,7 @@ export class MapPreview extends Phaser.Scene {
     this.onReady();
   }
 
-  renderState({ state, moves, selected, available, conflicts, resolving }: MapView) {
+  renderState({ scenario, state, moves, selected, available, conflicts, resolving }: MapView) {
     this.roads.clear();
     this.tweens.killTweensOf(this.availability);
     this.availability.clear().setAlpha(0.65);
@@ -164,7 +169,7 @@ export class MapPreview extends Phaser.Scene {
       if (destination) plannedStops.add(destination);
     }
     const selectedDestination = selected === null ? undefined : moves[selected];
-    for (const route of routes) {
+    for (const route of scenario.routes) {
       const closed = state.closedRoutes.includes(route.id);
       const conflict = conflicts.includes(route.id);
       const ferry = route.vehicleKind === "ferry";
@@ -196,11 +201,11 @@ export class MapPreview extends Phaser.Scene {
       }
     }
 
-    for (const id of vehicleIds) {
+    for (const id of scenario.vehicleIds) {
       const to = moves[id];
       if (!to) continue;
       const from = state.vehicles[id].node;
-      const route = routes.find(({ ends: [a, b] }) => (from === a && to === b) || (from === b && to === a));
+      const route = scenario.routes.find(({ ends: [a, b] }) => (from === a && to === b) || (from === b && to === a));
       if (!route) continue;
       const path = routePoints(route.id, from, to);
       const tip = path[path.length - 1];
@@ -210,7 +215,9 @@ export class MapPreview extends Phaser.Scene {
       drawArrow(this.arrows, path, conflicts.includes(route.id) ? blocked : plannedColor);
     }
 
-    for (const [id, { marker, zone }] of this.markers) {
+    const shownNodes = new Set(scenario.routes.flatMap(({ ends }) => ends));
+    for (const [id, { marker, drawing, zone }] of this.markers) {
+      drawing.setVisible(shownNodes.has(id));
       const isAvailable = !resolving && available.includes(id);
       const planned = plannedStops.has(id);
       marker.setFillStyle(planned ? 0xe5edff : 0xf9f8f1);
@@ -233,23 +240,25 @@ export class MapPreview extends Phaser.Scene {
       });
     }
     this.updateQueues(state.waiting);
+    for (const [id, { drawing }] of this.queues) drawing.setVisible(scenario.initialWaiting[id] > 0);
 
     for (const vehicle of vehicleIds) {
       const { group, selection, hover, checkmark, zone } = this.transport.get(vehicle)!;
-      const { x, y } = parkedPosition(state, vehicle);
-      group.setPosition(x, y);
+      const { x, y } = parkedPosition(scenario, state, vehicle);
+      const visible = scenario.vehicleIds.includes(vehicle);
+      group.setPosition(x, y).setVisible(visible);
       const active = vehicle === selected && !state.endReason;
       group.setDepth(active ? 1 : 0);
       this.updateOccupancy(vehicle, state.vehicles[vehicle].passengers?.count ?? 0);
       selection.setVisible(active);
       checkmark.setVisible(moves[vehicle] !== undefined);
-      zone.input!.enabled = !resolving && !state.endReason;
+      zone.input!.enabled = visible && !resolving && !state.endReason;
       if (!zone.input!.enabled) hover.setVisible(false);
     }
   }
 
-  async animateTurn(events: readonly TurnEvent[], nextState: GameState, onBoarding: () => void) {
-    await this.animateMoves(events, nextState);
+  async animateTurn(scenario: Scenario, events: readonly TurnEvent[], nextState: GameState, onBoarding: () => void) {
+    await this.animateMoves(scenario, events, nextState);
     for (const event of events) {
       if (event.kind === "evacuated") this.updateOccupancy(event.vehicle, 0);
     }
@@ -262,7 +271,7 @@ export class MapPreview extends Phaser.Scene {
     }
   }
 
-  private animateMoves(events: readonly TurnEvent[], nextState: GameState) {
+  private animateMoves(scenario: Scenario, events: readonly TurnEvent[], nextState: GameState) {
     const movements = events.filter((event) => event.kind === "moved");
     const trips = movements.map(({ vehicle, route, from, to }) => {
       const { group, checkmark } = this.transport.get(vehicle)!;
@@ -271,7 +280,7 @@ export class MapPreview extends Phaser.Scene {
       // At the embankment, enter and leave the route directly from the vehicle's stop.
       if (from === "embankment") waypoints.shift();
       if (to === "embankment") waypoints.pop();
-      const destination = parkedPosition(nextState, vehicle);
+      const destination = parkedPosition(scenario, nextState, vehicle);
       for (const { x, y } of [...waypoints, destination]) path.lineTo(x, y);
       group.setDepth(2);
       checkmark.setVisible(false);
@@ -294,6 +303,10 @@ export class MapPreview extends Phaser.Scene {
         onComplete: () => resolve(),
       });
     });
+  }
+
+  vehiclePosition(id: VehicleId): Point {
+    return this.transport.get(id)!.group;
   }
 
   private animateBoarding(boardings: readonly Boarding[], remaining: GameState["waiting"]) {
@@ -382,31 +395,34 @@ export class MapPreview extends Phaser.Scene {
     const { x, y, label } = nodes[id];
     const marker = this.add.circle(x, y, 40, 0xf9f8f1).setStrokeStyle(3, nodeOutline);
     const key = "node-" + id;
-    if (this.textures.exists(key)) this.add.image(x, y, key).setScale(0.5).setAlpha(0.8);
-    this.add.text(x, y + 58, label, {
+    const drawing = this.add.container(0, 0, [marker]);
+    if (this.textures.exists(key)) drawing.add(this.add.image(x, y, key).setScale(0.5).setAlpha(0.8));
+    drawing.add(this.add.text(x, y + 58, label, {
       fontFamily, fontSize: "36px", fontStyle: "bold", color: "#4a625c",
       stroke: id === firstScenario.shelter ? "#dce7df" : "#f1f0e8", strokeThickness: 5,
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0));
     const zone = this.add.zone(x, y + 20, 182, 122)
       .setInteractive({ useHandCursor: true })
       .on("pointerup", () => this.onDestination(id));
-    this.markers.set(id, { marker, zone });
+    this.markers.set(id, { marker, drawing, zone });
   }
 
   private drawQueue(id: DistrictId) {
     const { x, y } = nodes[id];
+    const drawing = this.add.container();
     if (this.textures.exists("waiting-people")) {
-      this.add.image(x - 4, y + 123, "waiting-people").setOrigin(1, 0.5).setScale(0.5);
+      drawing.add(this.add.image(x - 4, y + 123, "waiting-people").setOrigin(1, 0.5).setScale(0.5));
     }
     const count = this.add.text(x + 4, y + 123, "", {
       fontFamily, fontSize: "34px", fontStyle: "bold", color: "#243b39",
       stroke: "#f1f0e8", strokeThickness: 3,
     }).setOrigin(0, 0.5);
-    this.queues.set(id, count);
+    drawing.add(count);
+    this.queues.set(id, { count, drawing });
   }
 
   private updateQueues(waiting: GameState["waiting"]) {
-    for (const [id, count] of this.queues) count.setText(String(waiting[id]));
+    for (const [id, { count }] of this.queues) count.setText(String(waiting[id]));
   }
 
   private updateOccupancy(id: VehicleId, passengers: number) {

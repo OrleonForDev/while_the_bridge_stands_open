@@ -50,6 +50,55 @@ h2 { font-size: 1.1rem; }
 .intro-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.87rem; }
 .sound-toggle { min-width: 7.2rem; font-size: 0.87rem; }
 
+.lesson-guide {
+  padding: 0.75rem 0.95rem;
+  margin-block-end: 0.75rem;
+  border: 1px solid #a9c3b5;
+  border-radius: 0.65rem;
+  background: #edf4ee;
+}
+
+.lesson-guide h2 { font-size: 0.9rem; }
+.lesson-guide p { margin-top: 0.3rem; line-height: 1.4; }
+#lesson-actions:has(button:not([hidden])) { margin-top: 0.55rem; }
+#lesson-actions button { width: auto; padding-inline: 1.4rem 2.3rem; }
+#lesson-actions #lesson-map-action { padding-inline: 0.65rem; font-size: 0.85rem; }
+.lesson-arrow, .lesson-target::after {
+  color: #8a3b10;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: -1px 0 #fff9e8, 1px 0 #fff9e8, 0 1px #fff9e8, 0 -1px #fff9e8;
+}
+
+.lesson-arrow {
+  position: absolute;
+  z-index: 2;
+  left: var(--map-x);
+  top: var(--map-y);
+  translate: -50% calc(-100% - 0.55em);
+  font-size: clamp(1.75rem, 5cqw, 3.1rem);
+  animation: lesson-point-down 0.85s ease-in-out infinite alternate;
+}
+
+.lesson-target { position: relative; outline: 2px solid #a35c25; outline-offset: 2px; }
+.lesson-target::after {
+  content: "←";
+  position: absolute;
+  right: 0.3rem;
+  top: 50%;
+  translate: 0 -50%;
+  font-size: 1.5rem;
+  animation: lesson-point-left 0.85s ease-in-out infinite alternate;
+}
+.floodgate-options .lesson-target { padding-inline-end: 2rem; }
+@keyframes lesson-point-down { to { transform: translateY(0.25em); } }
+@keyframes lesson-point-left { to { transform: translateX(-0.25em); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-arrow, .lesson-target::after { animation: none; }
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
