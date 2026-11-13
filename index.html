@@ -23,6 +23,27 @@
         </div>
       </header>
 
+      <fieldset id="floodgate-choice" class="floodgate-choice" aria-describedby="floodgate-instruction" hidden>
+        <legend id="floodgate-title" tabindex="-1">Выбери режим водосброса</legend>
+        <p id="floodgate-instruction">Сравни последние доступные ходы. Режим вступит в силу, когда выполнишь ход.</p>
+        <div class="floodgate-options">
+          <label>
+            <input type="radio" name="floodgate" value="closed" aria-labelledby="floodgate-closed-label" aria-describedby="floodgate-closed-timing" />
+            <span>
+              <strong id="floodgate-closed-label">Оставить закрытым</strong>
+              <span id="floodgate-closed-timing" class="floodgate-timing"></span>
+            </span>
+          </label>
+          <label>
+            <input type="radio" name="floodgate" value="open" aria-labelledby="floodgate-open-label" aria-describedby="floodgate-open-timing" />
+            <span>
+              <strong id="floodgate-open-label">Открыть водосброс</strong>
+              <span id="floodgate-open-timing" class="floodgate-timing"></span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
       <div class="layout">
         <section class="map-panel" aria-label="Карта эвакуации">
           <div id="map" aria-hidden="true"></div>
@@ -61,12 +82,6 @@
             <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
             <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
             <p id="order-status" class="hint" role="status"></p>
-            <fieldset id="floodgate-choice" class="floodgate-choice" aria-describedby="floodgate-instruction" hidden>
-              <legend>Решение о водосбросе</legend>
-              <p id="floodgate-instruction" class="hint">Сравни сроки в прогнозе. Решение вступит в силу после выполнения хода.</p>
-              <label><input type="radio" name="floodgate" value="closed" /> Оставить закрытым</label>
-              <label><input type="radio" name="floodgate" value="open" /> Открыть водосброс</label>
-            </fieldset>
             <button type="button" id="advance" class="primary" aria-describedby="order-status">Выполнить ход</button>
           </div>
           <section id="result" aria-labelledby="result-title" hidden>

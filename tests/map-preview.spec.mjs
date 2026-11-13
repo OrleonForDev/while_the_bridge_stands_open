@@ -240,6 +240,11 @@ test("План Б: прогноз можно менять до подтверж�
   await advance.click();
   await expect(turn).toHaveText("3");
   await expect(advance).toBeDisabled();
+  await expect(advance).toHaveText("Выполнить ход · выбери водосброс");
+  const decision = page.getByRole("group", { name: "Выбери режим водосброса" });
+  await expect(decision).toBeInViewport();
+  await expect(decision).toContainText("Мост по 4-й ход · Паром по 6-й ход");
+  await expect(decision).toContainText("Мост по 7-й ход · Паром по 4-й ход");
   await expect(open).not.toBeChecked();
   await expect(page.locator("#order-status")).toContainText("выбери режим водосброса");
   await order("Автобус А1", "Убежище");
@@ -251,6 +256,7 @@ test("План Б: прогноз можно менять до подтверж�
   await page.keyboard.press("Space");
   await expect(open).toBeChecked();
   await expect(advance).toBeEnabled();
+  await expect(advance).toHaveText("Выполнить ход");
   await expect(page.getByText("Мост · последний ход 7", { exact: true })).toBeVisible();
   await expect(page.getByText("Переправа · последний ход 4", { exact: true })).toBeVisible();
   await expect(page.getByText("Нижняя дорога · последний ход 3", { exact: true })).toBeVisible();

@@ -48,8 +48,10 @@ const floodgateStatus = document.querySelector<HTMLElement>("#floodgate-status")
 const forecast = document.querySelector<HTMLElement>("#forecast")!;
 const forecastRows = document.querySelector<HTMLTableSectionElement>("#forecast-rows")!;
 const floodgateChoice = document.querySelector<HTMLFieldSetElement>("#floodgate-choice")!;
+const floodgateTitle = document.querySelector<HTMLElement>("#floodgate-title")!;
 const floodgateInputs = Array.from(floodgateChoice.querySelectorAll<HTMLInputElement>("input"));
 const forecastModes = ["closed", "open"] as const;
+const forecastCrossings = ["bridge", "ferry-crossing"] as const;
 const floodgateLabels: Record<FloodgateMode, string> = { closed: "Закрыт", open: "Открыт" };
 const forecasts = { closed: getRouteForecast("closed"), open: getRouteForecast("open") };
 const forecastRowsByMode = new Map<FloodgateMode, { row: HTMLTableRowElement; status: HTMLSpanElement }>();
@@ -163,10 +165,13 @@ for (const mode of forecastModes) {
   status.className = "forecast-status";
   heading.append(floodgateLabels[mode], status);
   row.append(heading);
-  for (const id of ["bridge", "ferry-crossing"] as const) {
-    const route = forecasts[mode].find(({ route }) => route === id)!;
-    row.insertCell().textContent = String(route.lastOpenTurn);
-  }
+  const [bridgeTurn, ferryTurn] = forecastCrossings.map(
+    (id) => forecasts[mode].find(({ route }) => route === id)!.lastOpenTurn,
+  );
+  row.insertCell().textContent = String(bridgeTurn);
+  row.insertCell().textContent = String(ferryTurn);
+  document.querySelector("#floodgate-" + mode + "-timing")!.textContent =
+    "Мост по " + bridgeTurn + "-й ход · Паром по " + ferryTurn + "-й ход";
   forecastRowsByMode.set(mode, { row, status });
 }
 
@@ -217,6 +222,7 @@ function render() {
   const available = availableDestinations(selected);
   const issues = validateTurn(state, turnOrders());
   const conflicts = issues.filter((issue) => issue.kind === "route-capacity");
+  const needsFloodgate = issues.some((issue) => issue.kind === "floodgate-choice-required");
   const forecastMode = renderForecast();
   const finished = state.endReason !== null;
   const report = getEvacuationReport(state);
@@ -274,11 +280,12 @@ function render() {
 
   wait.disabled = resolving;
   advance.disabled = resolving || finished || issues.length > 0;
-  advance.textContent = resolving ? "Выполняется ход…" : "Выполнить ход";
-  if (conflicts.length) {
+  advance.classList.toggle("awaiting-floodgate", needsFloodgate);
+  advance.textContent = resolving ? "Выполняется ход…" : needsFloodgate ? "Выполнить ход · выбери водосброс" : "Выполнить ход";
+  if (needsFloodgate) {
+    orderStatus.textContent = "Чтобы выполнить ход, выбери режим водосброса над картой.";
+  } else if (conflicts.length) {
     orderStatus.textContent = "На мосту два приказа. Измени маршрут одного автобуса.";
-  } else if (isDecisionTurn() && !draftFloodgate) {
-    orderStatus.textContent = "Чтобы выполнить ход, выбери режим водосброса.";
   } else if (moves[selected] !== undefined) {
     orderStatus.textContent = "Приказ принят. Можно назначить маршрут другой машине или выполнить ход.";
   } else {
@@ -426,8 +433,11 @@ async function executeTurn() {
   render();
   if (state.endReason !== null) {
     showResult(state.endReason);
+  } else if (isDecisionTurn()) {
+    floodgateTitle.focus({ preventScroll: true });
+    floodgateChoice.scrollIntoView({ block: "nearest" });
   } else if (restoreFocus && (document.activeElement === document.body || document.activeElement === advance)) {
-    (isDecisionTurn() ? floodgateInputs[0] : advance).focus();
+    advance.focus();
   }
 }
 

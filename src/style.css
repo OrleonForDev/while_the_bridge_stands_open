@@ -106,22 +106,47 @@ h2 { font-size: 1.2rem; }
 
 .floodgate-choice {
   min-width: 0;
-  margin: 0.85rem 0 0;
-  padding: 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 2px solid #b27627;
+  border-radius: 0.65rem;
+  background: #fff3d9;
+  color: #422e17;
+  scroll-margin-block: 1rem;
 }
 
-.floodgate-choice legend { padding-inline: 0.3rem; font-weight: 700; }
-.floodgate-choice .hint { margin: 0 0 0.4rem; }
+.floodgate-choice legend {
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.35rem;
+  background: #805017;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.floodgate-choice legend:focus-visible { outline: 2px solid #805017; outline-offset: 3px; }
+.floodgate-choice p { line-height: 1.4; }
+.floodgate-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
 .floodgate-choice label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-height: 2rem;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #bf9d66;
+  border-radius: 0.35rem;
+  background: var(--card);
   cursor: pointer;
 }
-.floodgate-choice input { accent-color: var(--accent); }
+
+.floodgate-choice label:has(input:checked) { border-color: #805017; background: #f8e3ba; }
+.floodgate-choice input { flex: none; margin: 0; accent-color: #805017; }
+.floodgate-timing { display: block; margin-top: 0.15rem; font-size: 0.88rem; }
 
 .turn-feedback:not(:empty) {
   padding: 0.7rem 0.9rem;
@@ -209,6 +234,13 @@ button:disabled { opacity: 0.55; cursor: default; }
 }
 
 .primary:hover:not(:disabled) { background: #094f48; }
+
+.primary.awaiting-floodgate:disabled {
+  opacity: 1;
+  border-color: #b27627;
+  background: #fff3d9;
+  color: #55360f;
+}
 
 dialog {
   width: min(28rem, calc(100% - 2rem));
