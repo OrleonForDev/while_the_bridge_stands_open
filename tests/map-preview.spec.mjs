@@ -65,6 +65,14 @@ test("План А от первого приказа до итога и повт
     Boolean(element.getContext("webgl2") || element.getContext("webgl"))
   )).toBe(true);
   await expect(turn).toHaveText("1");
+  await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
+  await expect(page.locator("#turn-feedback")).toBeEmpty();
+  const help = page.getByText("Как играть", { exact: true });
+  await help.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/За ход каждая машина проезжает один участок/)).toBeVisible();
+  await expect(page.getByText(/После последнего доступного хода маршрут закроется/)).toBeVisible();
+  await page.keyboard.press("Enter");
   await expect(score).toHaveText("0 / 108");
   await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Закрыт/ }).getByRole("cell")).toHaveText(["4", "6"]);
   await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Открыт/ }).getByRole("cell")).toHaveText(["7", "4"]);
@@ -81,6 +89,8 @@ test("План А от первого приказа до итога и повт
   await expect(turn).toHaveText("2");
   await expect(score).toHaveText("0 / 108");
   await expect(vehicle("Автобус А2")).toContainText("18/18 мест занято");
+  await expect(page.locator("#turn-feedback")).toContainText("Ход 1 выполнен. Посадка: 18 чел. Доставлено в убежище: 0 чел.");
+  await expect(page.locator("#turn-guide")).toContainText("Через мост за ход проезжает один автобус.");
 
   await vehicle("Автобус А1").click();
   const wide = await canvas.boundingBox();
@@ -93,6 +103,8 @@ test("План А от первого приказа до итога и повт
   await advance.click();
   await expect(turn).toHaveText("3");
   await expect(score).toHaveText("36 / 108");
+  await expect(page.locator("#turn-feedback")).toContainText("Доставлено в убежище: 36 чел.");
+  await expect(page.locator("#turn-guide")).toContainText("раньше закрывает паромную переправу");
 
   await vehicle("Автобус А1").focus();
   await page.keyboard.press("Enter");
@@ -117,6 +129,7 @@ test("План А от первого приказа до итога и повт
   await expect(turn).toHaveText("5");
   await expect(score).toHaveText("72 / 108");
   await expect(page.getByText("Мост · закрыт", { exact: true })).toBeVisible();
+  await expect(page.locator("#turn-feedback")).toContainText("С хода 5 проезд закрыт: мост.");
   await vehicle("Автобус А1").click();
   await expect(destination("Развязка")).toBeHidden();
 
@@ -143,8 +156,11 @@ test("План А от первого приказа до итога и повт
   await results.getByRole("button", { name: "Повторить" }).click();
   await expect(results).toBeHidden();
   await expect(turn).toHaveText("1");
+  await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
+  await expect(page.locator("#turn-feedback")).toBeEmpty();
   await expect(score).toHaveText("0 / 108");
   await expect(page.locator("#journal > li")).toHaveCount(0);
+  await expect(page.locator("#turn-feedback")).toBeEmpty();
   await expect(page.getByText("Мост · последний ход 4", { exact: true })).toBeVisible();
   await expect(vehicle("Автобус А1")).toContainText("Развязка · 0/18 мест занято");
   await expect(vehicle("Автобус А2")).toContainText("Школа · 0/18 мест занято");
@@ -158,6 +174,7 @@ test("План А от первого приказа до итога и повт
 });
 
 test("План Б: прогноз можно менять до подтверждения, затем действует открытый водосброс", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("./");
   const turn = page.locator("#turn-number");
   const score = page.locator("#score");
@@ -177,6 +194,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(turn).toHaveText("3");
   await expect(advance).toBeDisabled();
   await expect(open).not.toBeChecked();
+  await expect(page.locator("#order-status")).toContainText("выбери режим водосброса");
   await order("Автобус А1", "Убежище");
   await order("Паром", "Набережная");
   const before = await page.locator("#vehicles").innerText();
@@ -195,6 +213,8 @@ test("План Б: прогноз можно менять до подтверж�
   await open.check();
   await expect(turn).toHaveText("3");
   await expect(score).toHaveText("36 / 108");
+  await expect(page.locator("#turn-feedback")).toContainText("Доставлено в убежище: 36 чел.");
+  await expect(page.locator("#turn-guide")).toContainText("раньше закрывает паромную переправу");
   await expect(page.locator("#vehicles")).toHaveText(before, { useInnerText: true });
   await expect(page.locator("#journal")).toHaveText(journalBefore, { useInnerText: true });
 
@@ -213,6 +233,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(score).toHaveText("72 / 108");
   await expect(vehicle("Автобус А1")).toContainText("Развязка");
   await expect(page.getByText("Переправа · закрыт", { exact: true })).toBeVisible();
+  await expect(page.locator("#turn-feedback")).toContainText("С хода 5 проезд закрыт: переправа.");
   await expect(destination("Набережная")).toBeHidden();
 
   await order("Автобус А1", "Больница");
@@ -224,12 +245,14 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(score).toHaveText("72 / 108");
   await expect(vehicle("Автобус А1")).toContainText("18/18 мест занято");
   await order("Автобус А1", "Убежище");
+  await expect(page.locator("#turn-guide")).toHaveText("Последний ход для проезда: мост.");
   await advance.click();
 
   const results = page.getByRole("region", { name: "Итоги эвакуации" });
   await expect(turn).toHaveText("8");
   await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
   await expect(page.getByText("Мост · закрытие перед ходом 8", { exact: true })).toBeVisible();
+  await expect(page.locator("#turn-feedback")).toContainText("Ход 7 выполнен. Посадка: 0 чел. Доставлено в убежище: 18 чел.");
   for (const [district, values] of [["Больница", ["36", "0", "0"]], ["Школа", ["18", "0", "0"]], ["Набережная", ["36", "18", "0"]]]) {
     await expect(results.getByRole("row", { name: new RegExp(district) }).getByRole("cell")).toHaveText(values);
   }
@@ -237,6 +260,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(score).toHaveText("0 / 108");
   await expect(forecasts.getByRole("row", { name: /выбран/ })).toHaveCount(0);
   await expect(page.locator("#journal > li")).toHaveCount(0);
+  await expect(page.locator("#turn-feedback")).toBeEmpty();
   await advance.click();
   await advance.click();
   await expect(turn).toHaveText("3");
@@ -255,7 +279,7 @@ test("Встречные автобусы блокируют ход, прика�
   await order("Автобус А1", "Развязка");
   await order("Автобус А2", "Убежище");
   await expect(advance).toBeDisabled();
-  await expect(page.getByRole("status")).toContainText("На мосту два приказа");
+  await expect(page.locator("#order-status")).toContainText("На мосту два приказа");
   await expect(vehicle("Автобус А1")).toContainText("конфликт на мосту");
   await expect(vehicle("Автобус А2")).toContainText("конфликт на мосту");
   await expect(page.locator("#score")).toHaveText("0 / 108");
