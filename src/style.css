@@ -226,6 +226,36 @@ th:first-child { text-align: left; overflow-wrap: anywhere; }
   white-space: nowrap;
 }
 
+.district-queues {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .district-queues {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.9rem;
+    width: auto;
+    height: auto;
+    padding: 0.7rem 0.9rem;
+    border-top: 1px solid var(--border);
+    clip-path: none;
+    white-space: normal;
+    list-style: none;
+    font-size: 0.85rem;
+  }
+
+  .district-queues strong { color: var(--muted); }
+}
+
 @media (max-width: 840px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
 }

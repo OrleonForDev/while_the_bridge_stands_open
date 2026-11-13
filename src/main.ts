@@ -56,6 +56,16 @@ let moves: Partial<Record<VehicleId, NodeId | null>> = {};
 let selected: VehicleId = "bus-1";
 const vehicleButtons = new Map<VehicleId, HTMLButtonElement>();
 const destinationButtons = new Map<NodeId, HTMLButtonElement>();
+const queueList = document.querySelector("#district-queues")!;
+const queueCounts = new Map<(typeof districtIds)[number], HTMLElement>();
+for (const district of districtIds) {
+  const item = document.createElement("li");
+  const count = document.createElement("strong");
+  item.append(nodes[district].label + " ", count);
+  queueList.append(item);
+  queueCounts.set(district, count);
+}
+
 const routeList = document.querySelector("#routes")!;
 const routeItems = new Map<ScenarioRouteId, HTMLLIElement>();
 
@@ -199,6 +209,9 @@ function render() {
 
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
+  for (const [district, count] of queueCounts) {
+    count.textContent = "ждут " + report.districts[district].waiting;
+  }
   planning.hidden = finished;
   result.hidden = !finished;
   const guide = describeNextStep();
@@ -341,6 +354,10 @@ function showResult(reason: EndReason) {
   }
   resultTitle.focus();
 }
+
+advance.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && event.repeat) event.preventDefault();
+});
 
 advance.addEventListener("click", async (event) => {
   if (resolving || event.detail > 1) return;
