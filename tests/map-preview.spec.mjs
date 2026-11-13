@@ -73,11 +73,91 @@ async function expectNoHorizontalScroll(page) {
   })).toBe(true);
 }
 
+test("Два урока ведут от первого клика по карте к тестовому уровню", async ({ page, baseURL }) => {
+  const problems = watchPage(page, baseURL);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("./");
+
+  const canvas = page.locator("#map canvas");
+  const guide = page.locator("#lesson-guide");
+  const arrow = page.locator("#lesson-arrow");
+  const { advance, vehicle } = controls(page);
+  const mapAction = page.locator("#lesson-map-action");
+  const score = page.locator("#score");
+  const closed = page.getByRole("radio", { name: "Оставить закрытым" });
+  const open = page.getByRole("radio", { name: "Открыть водосброс" });
+
+  await expect(guide).toContainText("Автобус и посадка");
+  await expect(arrow).toBeVisible();
+  await expect(arrow).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(arrow).toHaveCSS("animation-name", "lesson-point-down");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(vehicle("Паром")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Переправа", exact: true })).toBeHidden();
+  await expect(advance).toBeHidden();
+  await expectNoHorizontalScroll(page);
+
+  await clickMarker(canvas, markers.bus1Start);
+  await expect(guide).toContainText("Нажми на школу");
+  await clickMarker(canvas, [1482, 378]);
+  await expect(advance).toBeEnabled();
+  await advance.click();
+  await expect(vehicle("Автобус А1")).toContainText("18/18");
+  await expect(score).toHaveText("0 / 18");
+
+  await mapAction.press("Enter");
+  await mapAction.press("Enter");
+  await advance.press("Enter");
+  await expect(guide).toContainText("Автобус у моста");
+  await mapAction.press("Enter");
+  await mapAction.press("Enter");
+  await advance.press("Enter");
+  await expect(score).toHaveText("18 / 18");
+  await guide.getByRole("button", { name: "Следующий урок" }).click();
+
+  await expect(guide).toContainText("Мост и паром");
+  await page.reload();
+  await expect(guide).toContainText("Мост и паром");
+  await closed.check();
+  await expect(routeStatus(page, "Мост")).toHaveText("Последний ход");
+  await open.check();
+  await expect(routeStatus(page, "Мост")).toHaveText("По 2-й ход");
+  await expect(routeStatus(page, "Переправа")).toHaveText("Последний ход");
+  await clickMarker(canvas, [813, 605]);
+  await expect(guide).toContainText("Паром доставит");
+  await clickMarker(canvas, markers.shelter);
+  await expect(guide).toContainText("Теперь выбери автобус");
+  await clickMarker(canvas, [1482, 307]);
+  await clickMarker(canvas, markers.junction);
+  await advance.click();
+  await expect(score).toHaveText("18 / 36");
+  await expect(routeStatus(page, "Переправа")).toHaveText("Закрыто");
+  await mapAction.click();
+  await mapAction.click();
+  await advance.click();
+  await expect(score).toHaveText("36 / 36");
+  await guide.getByRole("button", { name: "Начать тестовый уровень" }).click();
+
+  await expect(guide).toBeHidden();
+  await expect(score).toHaveText("0 / 108");
+  await expect(vehicle("Автобус А1")).toBeEnabled();
+  await expect(vehicle("Автобус А2")).toContainText("18/18");
+  await page.reload();
+  await expect(score).toHaveText("0 / 108");
+  await page.getByRole("button", { name: "Как играть", exact: true }).click();
+  await page.getByRole("button", { name: "Пройти обучение", exact: true }).click();
+  await expect(guide).toContainText("Автобус и посадка");
+  await page.getByRole("button", { name: "К тестовому уровню", exact: true }).click();
+  await expect(score).toHaveText("0 / 108");
+  expect(problems).toEqual([]);
+});
+
 test("План А от первого приказа до итога и повтора", async ({ page, baseURL }) => {
   const problems = watchPage(page, baseURL);
   const requests = [];
   page.on("request", (request) => requests.push(new URL(request.url()).pathname));
-  const response = await page.goto("./");
+  const response = await page.goto("./?level=test");
   expect(response?.ok()).toBe(true);
 
   const canvas = page.locator("#map canvas");
@@ -281,7 +361,7 @@ test("План А от первого приказа до итога и повт
 test("План Б: прогноз можно менять до подтверждения, затем действует открытый водосброс", async ({ page, baseURL }) => {
   const problems = watchPage(page, baseURL);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  const response = await page.goto("./");
+  const response = await page.goto("./?level=test");
   expect(response?.ok()).toBe(true);
   await expectNoHorizontalScroll(page);
   const turn = page.locator("#turn-number");
@@ -416,7 +496,7 @@ test("План Б: прогноз можно менять до подтверж�
 });
 
 test("Ход без всех приказов требует подтверждения, а явное ожидание считается приказом", async ({ page }) => {
-  await page.goto("./");
+  await page.goto("./?level=test");
   const turn = page.locator("#turn-number");
   const { advance, confirmation, vehicle, wait, order, route } = controls(page);
   const bus1 = vehicle("Автобус А1");
@@ -451,7 +531,7 @@ test("Ход без всех приказов требует подтвержд�
 
 test("Удержание Enter выполняет только один ход", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("./");
+  await page.goto("./?level=test");
   const turn = page.locator("#turn-number");
   const { advance, confirmation, vehicle, wait } = controls(page);
   for (const name of ["Автобус А1", "Автобус А2", "Паром"]) {
@@ -483,7 +563,7 @@ test("Удержание Enter выполняет только один ход",
 });
 
 test("Встречные автобусы блокируют ход, приказ можно снять", async ({ page }) => {
-  await page.goto("./");
+  await page.goto("./?level=test");
   const { advance, vehicle, wait, order, route } = controls(page);
   await order("Автобус А1", "Убежище");
   await order("Автобус А2", "Развязка");
@@ -515,7 +595,7 @@ test("Ассеты и лицензии доступны локально, зву
       window.playedCues.push(this.currentSrc.split("/").at(-1));
     };
   });
-  await page.goto("./");
+  await page.goto("./?level=test");
   const { destination, vehicle } = controls(page);
   const sound = page.getByRole("button", { name: "Звуки игры" });
   const cues = () => page.evaluate(() => window.playedCues);
