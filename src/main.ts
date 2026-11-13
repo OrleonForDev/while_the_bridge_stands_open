@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { version } from "../package.json";
 import { MapPreview } from "./map-preview";
 import { districtIds, firstScenario, vehicleIds } from "./game/scenario.ts";
 import type { FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
@@ -6,6 +7,8 @@ import { advanceTurn, createInitialState, getEvacuationReport, getRouteForecast,
 import type { EndReason, TurnEvent, TurnOrders } from "./game/turn.ts";
 import { GameSounds } from "./game-sounds";
 import "./style.css";
+
+document.querySelector("#build-version")!.textContent = "Версия " + version;
 
 const { map, nodes, routes, vehicles } = firstScenario;
 const nodeIds = Object.keys(nodes) as NodeId[];
