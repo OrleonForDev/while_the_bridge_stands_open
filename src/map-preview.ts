@@ -11,10 +11,12 @@ const plannedColor = 0x234aa0;
 const availableGlow = 0x72c4a3;
 const blocked = 0x9a422e;
 const paper = 0xf1f0e8;
-const emptyTransport = "#536961";
-const occupiedTransport = "#925119";
+const emptyTransport = "#f4f9f7";
+const occupiedTransport = "#ffd185";
 const fontFamily = '"Bridge Inter", "Segoe UI", sans-serif';
-const transportSpacing = 104;
+const transportSpacing = 128;
+const vehicleButtonWidth = 116;
+const vehicleButtonHeight = 76;
 const movementDuration = 950;
 
 type Point = { x: number; y: number };
@@ -34,8 +36,9 @@ type VehicleMarker = {
   group: Phaser.GameObjects.Container;
   fill: Phaser.GameObjects.Image | undefined;
   occupancy: Phaser.GameObjects.Text;
-  selection: Phaser.GameObjects.Graphics;
-  checkmark: Phaser.GameObjects.Text;
+  button: Phaser.GameObjects.Graphics;
+  selected: boolean;
+  checkmark: Phaser.GameObjects.Container;
   zone: Phaser.GameObjects.Zone;
 };
 
@@ -66,11 +69,23 @@ function parkedPosition(state: GameState, vehicle: VehicleId): Point {
   const { x, y } = nodes[node];
   if (node === "embankment") {
     // Keep the ferry at the riverbank and the buses on the road side.
-    const slot = vehicle === "ferry" ? -0.5 : present.indexOf(vehicle) + 0.5;
-    return { x: x + slot * transportSpacing, y: y - 71 };
+    const offset = vehicle === "ferry" ? -transportSpacing / 2 : (present.indexOf(vehicle) + 0.5) * transportSpacing;
+    return { x: x + offset, y: y - 78 };
   }
   const offset = (present.indexOf(vehicle) - (present.length - 1) / 2) * transportSpacing;
-  return { x: x + offset, y: y - 71 };
+  return { x: x + offset, y: y - 78 };
+}
+
+function drawVehicleButton({ button, selected }: VehicleMarker, hovered = false) {
+  const x = -vehicleButtonWidth / 2;
+  const y = -49;
+  const radius = 14;
+  button.clear();
+  button.fillStyle(0x172e30, 0.2).fillRoundedRect(x, y + 6, vehicleButtonWidth, vehicleButtonHeight, radius);
+  const fill = hovered ? 0x24796d : selected ? accent : 0x304b4b;
+  button.fillStyle(fill).fillRoundedRect(x, y, vehicleButtonWidth, vehicleButtonHeight, radius);
+  button.lineStyle(selected ? 5 : 2, selected ? 0xc1f2db : 0xf4f9f7)
+    .strokeRoundedRect(x, y, vehicleButtonWidth, vehicleButtonHeight, radius);
 }
 
 function strokePath(graphics: Phaser.GameObjects.Graphics, path: readonly Point[], dashed: boolean) {
@@ -145,8 +160,8 @@ export class MapPreview extends Phaser.Scene {
 
     for (const [id, position] of Object.entries(routeLabels)) {
       const text = this.add.text(position.x, position.y, "", {
-        fontFamily, fontSize: "27px", fontStyle: "bold",
-        color: "#38534d", backgroundColor: "#f9f8f1", padding: { x: 13, y: 6 },
+        fontFamily, fontSize: "25px",
+        color: "#4a625c", backgroundColor: "#f9f8f1", padding: { x: 11, y: 5 },
       }).setOrigin(0.5);
       this.routeText.set(id as ScenarioRouteId, text);
     }
@@ -183,13 +198,13 @@ export class MapPreview extends Phaser.Scene {
         ((from === origin && available.includes(to)) || (to === origin && available.includes(from)));
       const isSelectedOrder = (from === origin && to === selectedDestination) ||
         (to === origin && from === selectedDestination);
-      this.roads.lineStyle(route.id === "bridge" ? 20 : 14, 0xf9f8f1);
+      this.roads.lineStyle(route.id === "bridge" ? 15 : 10, 0xf9f8f1);
       strokePath(this.roads, path, closed || ferry);
-      const lineColor = closed || conflict ? blocked : isAvailable ? accent : ferry ? 0x4c7178 : 0x74827b;
-      this.roads.lineStyle(conflict || isAvailable ? 8 : 5, lineColor);
+      const lineColor = closed || conflict ? blocked : isAvailable ? accent : ferry ? 0x56777c : 0x87948b;
+      this.roads.lineStyle(conflict || isAvailable ? 6 : 4, lineColor);
       strokePath(this.roads, path, closed || ferry);
       if (isAvailable && !isSelectedOrder && !closed && !conflict) {
-        this.availability.lineStyle(22, availableGlow, 0.6);
+        this.availability.lineStyle(17, availableGlow, 0.6);
         strokePath(this.availability, path, ferry);
       }
       if (closed) {
@@ -220,7 +235,7 @@ export class MapPreview extends Phaser.Scene {
       const tip = path[path.length - 1];
       const previous = path[path.length - 2];
       const angle = Math.atan2(tip.y - previous.y, tip.x - previous.x);
-      path[path.length - 1] = { x: tip.x - 53 * Math.cos(angle), y: tip.y - 53 * Math.sin(angle) };
+      path[path.length - 1] = { x: tip.x - 44 * Math.cos(angle), y: tip.y - 44 * Math.sin(angle) };
       drawArrow(this.arrows, path, conflicts.includes(route.id) ? blocked : plannedColor);
     }
 
@@ -229,10 +244,10 @@ export class MapPreview extends Phaser.Scene {
       const current = !resolving && !state.endReason && id === origin;
       const planned = plannedStops.has(id);
       marker.setFillStyle(planned ? 0xe5edff : isAvailable || current ? 0xe3f1e8 : 0xf9f8f1);
-      marker.setStrokeStyle(planned || isAvailable ? 7 : 3, planned ? plannedColor : isAvailable || current ? accent : 0x677a71);
+      marker.setStrokeStyle(planned || isAvailable ? 5 : 2, planned ? plannedColor : isAvailable || current ? accent : 0x677a71);
       if (isAvailable && id !== selectedDestination) {
-        this.availability.lineStyle(9, availableGlow);
-        this.availability.strokeCircle(marker.x, marker.y, 49);
+        this.availability.lineStyle(7, availableGlow);
+        this.availability.strokeCircle(marker.x, marker.y, 40);
       }
       if (isAvailable) zone.setInteractive({ useHandCursor: true });
       else zone.disableInteractive();
@@ -250,13 +265,15 @@ export class MapPreview extends Phaser.Scene {
     this.updateQueues(state.waiting);
 
     for (const vehicle of vehicleIds) {
-      const { group, selection, checkmark, zone } = this.transport.get(vehicle)!;
+      const marker = this.transport.get(vehicle)!;
+      const { group, checkmark, zone } = marker;
       const { x, y } = parkedPosition(state, vehicle);
       group.setPosition(x, y);
       const active = vehicle === selected && !state.endReason;
       group.setDepth(active ? 1 : 0);
       this.updateOccupancy(vehicle, state.vehicles[vehicle].passengers?.count ?? 0);
-      selection.setVisible(active);
+      marker.selected = active;
+      drawVehicleButton(marker);
       checkmark.setVisible(moves[vehicle] !== undefined);
       zone.input!.enabled = !resolving && !state.endReason;
     }
@@ -321,11 +338,11 @@ export class MapPreview extends Phaser.Scene {
 
   private drawNode(id: NodeId) {
     const { x, y, label } = nodes[id];
-    const marker = this.add.circle(x, y, 40, 0xf9f8f1).setStrokeStyle(3, ink);
+    const marker = this.add.circle(x, y, 33, 0xf9f8f1).setStrokeStyle(2, ink);
     const key = "node-" + id;
-    if (this.textures.exists(key)) this.add.image(x, y, key).setScale(0.5);
-    this.add.text(x, y + 58, label, {
-      fontFamily, fontSize: "36px", fontStyle: "bold", color: "#243c39",
+    if (this.textures.exists(key)) this.add.image(x, y, key).setDisplaySize(43, 43);
+    this.add.text(x, y + 53, label, {
+      fontFamily, fontSize: "33px", fontStyle: "bold", color: "#243c39",
       stroke: id === firstScenario.shelter ? "#dce7df" : "#f1f0e8", strokeThickness: 5,
     }).setOrigin(0.5, 0);
     const zone = this.add.zone(x, y + 20, 182, 122)
@@ -380,36 +397,33 @@ export class MapPreview extends Phaser.Scene {
   private drawVehicle(id: VehicleId) {
     const { label, kind } = vehicles[id];
     const key = "vehicle-" + kind;
-    const iconX = kind === "bus" ? -15 : 0;
+    const iconX = -23;
     const parts: Phaser.GameObjects.GameObject[] = [];
     const icon = this.textures.exists(key + "-empty")
-      ? this.add.image(iconX, 0, key + "-empty").setScale(0.5)
+      ? this.add.image(iconX, -9, key + "-empty").setScale(0.43)
       : undefined;
     const fill = icon && this.textures.exists(key + "-occupied")
-      ? this.add.image(iconX, 0, key + "-occupied").setScale(0.5)
+      ? this.add.image(iconX, -9, key + "-occupied").setScale(0.43)
       : undefined;
     if (icon && fill) parts.push(icon, fill);
-    if (kind === "bus" || !icon) {
-      const text = this.add.text(icon ? 33 : 0, 1, label, {
-        fontFamily, fontSize: "22px", fontStyle: "bold", color: "#243b39",
-      }).setOrigin(0.5);
-      parts.push(text);
-    }
-    const occupancy = this.add.text(iconX, -34, "", {
-      fontFamily, fontSize: "28px", fontStyle: "bold", color: "#243b39",
-      stroke: "#f1f0e8", strokeThickness: 4,
+    const identifier = this.add.text(icon ? 24 : 0, -25, label, {
+      fontFamily, fontSize: "26px", fontStyle: "bold", color: "#ffffff",
     }).setOrigin(0.5);
-    const selection = this.add.graphics();
-    selection.fillStyle(0xf2fcf5).fillRoundedRect(-48, -51, 96, 79, 13);
-    selection.lineStyle(5, accent).strokeRoundedRect(-48, -51, 96, 79, 13);
-    selection.setVisible(false);
-    const zone = this.add.zone(0, -10, kind === "bus" ? 100 : 72, 72).setInteractive({ useHandCursor: true })
-      .on("pointerup", () => this.onVehicle(id));
-    const checkmark = this.add.text(kind === "bus" ? 40 : 32, -20, "✓", {
-      fontFamily, fontSize: "22px", fontStyle: "bold", color: "#206341",
-      stroke: "#f1f0e8", strokeThickness: 3,
-    }).setOrigin(0.5).setVisible(false);
-    const group = this.add.container(0, 0, [selection, ...parts, occupancy, checkmark, zone]);
-    this.transport.set(id, { group, fill, occupancy, selection, checkmark, zone });
+    const occupancy = this.add.text(icon ? 24 : 0, 7, "", {
+      fontFamily, fontSize: "21px", fontStyle: "bold", color: "#e3eeea",
+    }).setOrigin(0.5);
+    const button = this.add.graphics();
+    const checkmark = this.add.container(48, -46, [
+      this.add.circle(0, 0, 14, plannedColor).setStrokeStyle(2, 0xffffff),
+      this.add.text(0, 0, "✓", { fontFamily, fontSize: "19px", color: "#ffffff" }).setOrigin(0.5),
+    ]).setVisible(false);
+    const zone = this.add.zone(0, -11, vehicleButtonWidth, vehicleButtonHeight)
+      .setInteractive({ useHandCursor: true });
+    const group = this.add.container(0, 0, [button, ...parts, identifier, occupancy, checkmark, zone]);
+    const marker = { group, fill, occupancy, button, selected: false, checkmark, zone };
+    zone.on("pointerover", () => drawVehicleButton(marker, true));
+    zone.on("pointerout", () => drawVehicleButton(marker));
+    zone.on("pointerup", () => this.onVehicle(id));
+    this.transport.set(id, marker);
   }
 }

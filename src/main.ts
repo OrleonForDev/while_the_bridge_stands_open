@@ -254,7 +254,8 @@ function render() {
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
   orderCount.textContent = (vehicleIds.length - unassigned.length) + " из " + vehicleIds.length + " готовы";
-  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути" : "Выбран транспорт · " + vehicleName(selected);
+  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути"
+    : "Нажми на транспорт, затем на подсвеченный пункт";
   for (const [district, count] of queueCounts) {
     count.data = String(report.districts[district].waiting);
   }
@@ -509,7 +510,7 @@ const scene = new MapPreview(assign, selectVehicle, () => {
 async function startGame() {
   // Phaser draws labels to textures, so load the font before creating the scene.
   await document.fonts.load('700 38px "Bridge Inter"', "Убежище").catch(() => []);
-  new Phaser.Game({
+  const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: mapElement,
     width: map.width,
@@ -521,6 +522,11 @@ async function startGame() {
     banner: false,
     audio: { noAudio: true },
   });
+  // Page layout can move the canvas without resizing it.
+  const updateMapBounds = () => game.scale.updateBounds();
+  for (const event of ["mouseover", "mousedown", "mouseup", "touchstart", "touchend"]) {
+    mapElement.addEventListener(event, updateMapBounds, { capture: true, passive: true });
+  }
 }
 
 void startGame();
