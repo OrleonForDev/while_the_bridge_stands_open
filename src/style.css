@@ -426,6 +426,15 @@ dialog {
 
 dialog::backdrop { background: rgb(24 43 42 / 45%); }
 dialog p { margin-top: 0.6rem; line-height: 1.45; }
+.game-help-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.game-help-close {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border-color: transparent;
+}
 .dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
 .dialog-actions .primary { width: auto; margin: 0; }
 

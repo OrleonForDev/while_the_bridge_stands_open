@@ -117,17 +117,22 @@
       <footer class="credits"><a href="%BASE_URL%assets/CREDITS.txt">Авторы и лицензии ассетов</a> · <span id="build-version"></span></footer>
     </main>
     <dialog id="game-help" class="game-help" aria-labelledby="game-help-title">
-      <h2 id="game-help-title">Как играть</h2>
+      <div class="game-help-heading">
+        <h2 id="game-help-title">Как играть</h2>
+        <form method="dialog">
+          <button type="submit" class="game-help-close" aria-label="Закрыть" autofocus>
+            <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="m5 5 10 10m0-10L5 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
+        </form>
+      </div>
       <ol>
+        <li>Доставь как можно больше жителей в убежище до закрытия переправ или окончания времени.</li>
         <li>Выбери автобус или паром на карте либо в панели приказов. Нажми на подсвеченный пункт или «Ждать». Если проехать некуда, транспорт ждёт автоматически.</li>
-        <li>С клавиатуры перемещай фокус клавишей Tab и подтверждай выбор клавишей Enter. Кнопки пунктов появляются внизу карты, когда получают фокус.</li>
         <li>Проверь выбранные маршруты и нажми «Выполнить ход». За ход каждая машина проезжает один участок. Пустая машина забирает до 18 человек перед выездом. Люди засчитываются по прибытии в убежище.</li>
         <li>Через мост за ход проезжает один автобус в любом направлении. После последнего доступного хода маршрут закроется.</li>
-        <li>На третьем ходу выбери режим водосброса. Открытие продлит работу моста, но сократит время работы парома.</li>
       </ol>
-      <form method="dialog">
-        <button type="submit" autofocus>Закрыть</button>
-      </form>
     </dialog>
     <dialog id="unassigned-dialog" aria-labelledby="unassigned-title" aria-describedby="unassigned-message">
       <h2 id="unassigned-title">Выполнить ход без всех приказов?</h2>
