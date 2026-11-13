@@ -83,6 +83,36 @@ h2 { font-size: 1.2rem; }
 .routes .closed { color: var(--error); }
 .routes .closed::before { content: "× "; }
 
+.forecast {
+  border-top: 1px solid var(--border);
+  padding: 0.8rem 0.9rem;
+}
+
+.forecast h2 { font-size: 1rem; }
+.forecast .hint { margin-top: 0.25rem; }
+.forecast table { margin-top: 0.4rem; }
+.forecast-active { background: #e5efe7; }
+.forecast-status { font-weight: 500; color: var(--muted); }
+
+.floodgate-choice {
+  min-width: 0;
+  margin: 0.85rem 0 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+}
+
+.floodgate-choice legend { padding-inline: 0.3rem; font-weight: 700; }
+.floodgate-choice .hint { margin: 0 0 0.4rem; }
+.floodgate-choice label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  cursor: pointer;
+}
+.floodgate-choice input { accent-color: var(--accent); }
+
 .panel, .journal { padding: 1rem; }
 .vehicles { display: grid; gap: 0.4rem; margin-block: 0.8rem; }
 .destinations { display: flex; flex-wrap: wrap; gap: 0.4rem; }

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { firstScenario, districtIds, vehicleIds } from "./game/scenario.ts";
-import type { NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import type { FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
 import type { GameState, TurnOrders } from "./game/turn.ts";
 
 const { map, nodes, routes } = firstScenario;
@@ -17,6 +17,7 @@ type MapView = {
   moves: NonNullable<TurnOrders["moves"]>;
   selected: VehicleId;
   available: readonly NodeId[];
+  forecastMode: FloodgateMode;
   conflicts: readonly ScenarioRouteId[];
 };
 type NodeMarker = {
@@ -118,7 +119,7 @@ export class MapPreview extends Phaser.Scene {
     this.onReady();
   }
 
-  renderState({ state, moves, selected, available, conflicts }: MapView) {
+  renderState({ state, moves, selected, available, forecastMode, conflicts }: MapView) {
     this.roads.clear();
     this.arrows.clear();
     for (const route of routes) {
@@ -141,7 +142,7 @@ export class MapPreview extends Phaser.Scene {
         this.roads.lineBetween(x - 11, y - 11, x + 11, y + 11);
         this.roads.lineBetween(x - 11, y + 11, x + 11, y - 11);
       }
-      const last = route.lastOpenTurn?.[state.floodgate ?? "closed"];
+      const last = route.lastOpenTurn?.[forecastMode];
       const label = this.routeText.get(route.id);
       if (label) {
         const detail = closed ? " × Закрыт" : conflict ? " · конфликт" : " · последний ход " + last;

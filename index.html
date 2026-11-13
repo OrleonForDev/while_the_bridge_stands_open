@@ -24,10 +24,20 @@
         <section class="map-panel" aria-label="Карта эвакуации">
           <div id="map" aria-hidden="true"></div>
           <div class="map-footer">
-            <span>Водосброс закрыт</span>
+            <span id="floodgate-status"></span>
             <span>Мост пропускает один автобус за ход</span>
           </div>
           <ul id="routes" class="routes" aria-label="Состояние маршрутов"></ul>
+          <section id="forecast" class="forecast" aria-labelledby="forecast-title" hidden>
+            <h2 id="forecast-title">Прогноз закрытий</h2>
+            <p class="hint">По маршруту можно проехать и в указанный ход.</p>
+            <table aria-label="Последний доступный ход">
+              <thead>
+                <tr><th scope="col">Водосброс</th><th scope="col">Мост</th><th scope="col">Паром</th></tr>
+              </thead>
+              <tbody id="forecast-rows"></tbody>
+            </table>
+          </section>
         </section>
 
         <div class="panel">
@@ -36,6 +46,12 @@
             <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
             <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
             <p id="order-status" class="hint" role="status"></p>
+            <fieldset id="floodgate-choice" class="floodgate-choice" aria-describedby="floodgate-instruction" hidden>
+              <legend>Решение о водосбросе</legend>
+              <p id="floodgate-instruction" class="hint">Выбери вариант и выполни ход, чтобы подтвердить решение.</p>
+              <label><input type="radio" name="floodgate" value="closed" /> Оставить закрытым</label>
+              <label><input type="radio" name="floodgate" value="open" /> Открыть водосброс</label>
+            </fieldset>
             <button type="button" id="advance" class="primary">Выполнить ход</button>
           </div>
           <section id="result" aria-labelledby="result-title" hidden>

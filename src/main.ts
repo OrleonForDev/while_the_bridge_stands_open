@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { MapPreview } from "./map-preview";
 import { districtIds, firstScenario, vehicleIds } from "./game/scenario.ts";
-import type { NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import type { FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
 import { advanceTurn, createInitialState, getEvacuationReport, getRouteForecast, validateTurn } from "./game/turn.ts";
 import type { EndReason, TurnEvent, TurnOrders } from "./game/turn.ts";
 import "./style.css";
@@ -25,7 +25,18 @@ const resultRows = document.querySelector<HTMLTableSectionElement>("#district-re
 const journal = document.querySelector<HTMLOListElement>("#journal")!;
 const journalEmpty = document.querySelector<HTMLElement>("#journal-empty")!;
 
+const floodgateStatus = document.querySelector<HTMLElement>("#floodgate-status")!;
+const forecast = document.querySelector<HTMLElement>("#forecast")!;
+const forecastRows = document.querySelector<HTMLTableSectionElement>("#forecast-rows")!;
+const floodgateChoice = document.querySelector<HTMLFieldSetElement>("#floodgate-choice")!;
+const floodgateInputs = Array.from(floodgateChoice.querySelectorAll<HTMLInputElement>("input"));
+const forecastModes = ["closed", "open"] as const;
+const floodgateLabels: Record<FloodgateMode, string> = { closed: "Закрыт", open: "Открыт" };
+const forecasts = { closed: getRouteForecast("closed"), open: getRouteForecast("open") };
+const forecastRowsByMode = new Map<FloodgateMode, { row: HTMLTableRowElement; status: HTMLSpanElement }>();
+
 let state = createInitialState();
+let draftFloodgate: FloodgateMode | undefined;
 let moves: Partial<Record<VehicleId, NodeId | null>> = {};
 let selected: VehicleId = "bus-1";
 const vehicleButtons = new Map<VehicleId, HTMLButtonElement>();
@@ -63,8 +74,12 @@ function availableDestinations(vehicle: VehicleId): NodeId[] {
   return destinations;
 }
 
+function isDecisionTurn() {
+  return state.endReason === null && state.turn === firstScenario.decisionTurn && state.floodgate === null;
+}
+
 function turnOrders(): TurnOrders {
-  return state.turn === firstScenario.decisionTurn ? { moves, floodgate: "closed" } : { moves };
+  return isDecisionTurn() ? { moves, floodgate: draftFloodgate } : { moves };
 }
 
 function selectVehicle(id: VehicleId) {
@@ -100,9 +115,50 @@ for (const route of routes) {
   routeItems.set(route.id, item);
 }
 
+for (const mode of forecastModes) {
+  const row = forecastRows.insertRow();
+  const heading = document.createElement("th");
+  heading.scope = "row";
+  const status = document.createElement("span");
+  status.className = "forecast-status";
+  heading.append(floodgateLabels[mode], status);
+  row.append(heading);
+  for (const id of ["bridge", "ferry-crossing"] as const) {
+    const route = forecasts[mode].find(({ route }) => route === id)!;
+    row.insertCell().textContent = String(route.lastOpenTurn);
+  }
+  forecastRowsByMode.set(mode, { row, status });
+}
+
+for (const input of floodgateInputs) {
+  input.addEventListener("change", () => {
+    if (!isDecisionTurn() || !input.checked) return;
+    draftFloodgate = input.value === "open" ? "open" : "closed";
+    render();
+  });
+}
+
+function renderForecast() {
+  const shownMode = state.floodgate ?? draftFloodgate ?? "closed";
+  const chosen = state.floodgate !== null;
+  floodgateChoice.hidden = !isDecisionTurn();
+  for (const input of floodgateInputs) input.checked = input.value === draftFloodgate;
+  for (const [mode, { row, status }] of forecastRowsByMode) {
+    const isShown = shownMode === mode;
+    row.classList.toggle("forecast-active", isShown);
+    status.textContent = isShown ? (chosen ? " · выбран" : " · на карте") : "";
+  }
+  floodgateStatus.textContent = chosen
+    ? "Водосброс " + floodgateLabels[shownMode].toLowerCase()
+    : "На карте прогноз: водосброс " + floodgateLabels[shownMode].toLowerCase();
+  return shownMode;
+}
+
 function render() {
   const available = availableDestinations(selected);
-  const conflicts = validateTurn(state, turnOrders()).filter((issue) => issue.kind === "route-capacity");
+  const issues = validateTurn(state, turnOrders());
+  const conflicts = issues.filter((issue) => issue.kind === "route-capacity");
+  const forecastMode = renderForecast();
   const finished = state.endReason !== null;
   const report = getEvacuationReport(state);
 
@@ -137,13 +193,13 @@ function render() {
   }
   wait.setAttribute("aria-pressed", String(!moves[selected]));
 
-  advance.disabled = finished || conflicts.length > 0;
+  advance.disabled = finished || issues.length > 0;
   orderStatus.textContent = conflicts.length
     ? "На мосту два приказа. Измени маршрут одного автобуса."
     : available.length ? "Выбери соседний узел на карте или в списке." : "Для этого транспорта открытых маршрутов нет.";
   orderStatus.classList.toggle("error", conflicts.length > 0);
 
-  for (const { route, lastOpenTurn } of getRouteForecast(state.floodgate ?? "closed")) {
+  for (const { route, lastOpenTurn } of forecasts[forecastMode]) {
     const item = routeItems.get(route);
     if (!item) continue;
     const closed = state.closedRoutes.includes(route);
@@ -151,7 +207,7 @@ function render() {
     item.classList.toggle("closed", closed);
   }
 
-  scene.renderState({ state, moves, selected, available, conflicts: conflicts.map((issue) => issue.route) });
+  scene.renderState({ state, moves, selected, available, forecastMode, conflicts: conflicts.map((issue) => issue.route) });
 }
 
 function describeEvent(event: TurnEvent): string | null {
@@ -165,7 +221,7 @@ function describeEvent(event: TurnEvent): string | null {
     case "route-closed":
       return routeName(event.route) + " · закрытие перед ходом " + event.turn;
     case "floodgate-chosen":
-      return "Водосброс оставлен закрытым.";
+      return event.mode === "open" ? "Водосброс открыт." : "Водосброс оставлен закрытым.";
     case "game-ended":
       return null;
   }
@@ -218,6 +274,7 @@ advance.addEventListener("click", (event) => {
   const next = advanceTurn(state, turnOrders());
   if (!next.ok) return;
   state = next.state;
+  draftFloodgate = undefined;
   moves = {};
   addJournalEntries(next.events, turn);
   render();
@@ -226,6 +283,7 @@ advance.addEventListener("click", (event) => {
 
 restart.addEventListener("click", () => {
   state = createInitialState();
+  draftFloodgate = undefined;
   moves = {};
   selected = "bus-1";
   journal.replaceChildren();
@@ -236,6 +294,7 @@ restart.addEventListener("click", () => {
 
 const scene = new MapPreview(assign, selectVehicle, () => {
   loading.hidden = true;
+  forecast.hidden = false;
   render();
 });
 
