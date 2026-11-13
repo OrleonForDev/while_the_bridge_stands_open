@@ -66,7 +66,9 @@ test("План А от первого приказа до итога и повт
   )).toBe(true);
   await expect(turn).toHaveText("1");
   await expect(score).toHaveText("0 / 108");
-  await expect(page.getByText("Водосброс закрыт", { exact: true })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Закрыт/ }).getByRole("cell")).toHaveText(["4", "6"]);
+  await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Открыт/ }).getByRole("cell")).toHaveText(["7", "4"]);
+  await expect(page.getByRole("radio", { name: "Оставить закрытым" })).toBeHidden();
 
   await vehicle("Паром").click();
   await clickMarker(canvas, markers.bus1Start);
@@ -98,8 +100,13 @@ test("План А от первого приказа до итога и повт
   await page.keyboard.press("Enter");
   await expect(vehicle("Автобус А1")).toContainText("→ Убежище");
   await order("Паром", "Набережная");
+  await expect(advance).toBeDisabled();
+  const keepClosed = page.getByRole("radio", { name: "Оставить закрытым" });
+  await expect(keepClosed).not.toBeChecked();
+  await keepClosed.check();
   await advance.click();
   await expect(turn).toHaveText("4");
+  await expect(keepClosed).toBeHidden();
   await expect(score).toHaveText("54 / 108");
   await expect(page.getByText("Нижняя дорога · закрыт", { exact: true })).toBeVisible();
 
@@ -148,6 +155,94 @@ test("План А от первого приказа до итога и повт
     await expect(page.locator("script[type=module][src]")).toHaveAttribute("src", /^\.\/assets\//);
   }
   expect(problems).toEqual([]);
+});
+
+test("План Б: прогноз можно менять до подтверждения, затем действует открытый водосброс", async ({ page }) => {
+  await page.goto("./");
+  const turn = page.locator("#turn-number");
+  const score = page.locator("#score");
+  const { advance, vehicle, destination, order } = controls(page);
+  const keepClosed = page.getByRole("radio", { name: "Оставить закрытым" });
+  const open = page.getByRole("radio", { name: "Открыть водосброс" });
+  const forecasts = page.getByRole("table", { name: "Последний доступный ход" });
+
+  await order("Автобус А1", "Больница");
+  await order("Автобус А2", "Развязка");
+  await order("Паром", "Набережная");
+  await advance.click();
+  await order("Автобус А1", "Развязка");
+  await order("Автобус А2", "Убежище");
+  await order("Паром", "Убежище");
+  await advance.click();
+  await expect(turn).toHaveText("3");
+  await expect(advance).toBeDisabled();
+  await expect(open).not.toBeChecked();
+  await order("Автобус А1", "Убежище");
+  await order("Паром", "Набережная");
+  const before = await page.locator("#vehicles").innerText();
+  const journalBefore = await page.locator("#journal").innerText();
+
+  await open.focus();
+  await page.keyboard.press("Space");
+  await expect(open).toBeChecked();
+  await expect(advance).toBeEnabled();
+  await expect(page.getByText("Мост · последний ход 7", { exact: true })).toBeVisible();
+  await expect(page.getByText("Переправа · последний ход 4", { exact: true })).toBeVisible();
+  await expect(page.getByText("Нижняя дорога · последний ход 3", { exact: true })).toBeVisible();
+  await keepClosed.check();
+  await expect(page.getByText("Мост · последний ход 4", { exact: true })).toBeVisible();
+  await expect(page.getByText("Переправа · последний ход 6", { exact: true })).toBeVisible();
+  await open.check();
+  await expect(turn).toHaveText("3");
+  await expect(score).toHaveText("36 / 108");
+  await expect(page.locator("#vehicles")).toHaveText(before, { useInnerText: true });
+  await expect(page.locator("#journal")).toHaveText(journalBefore, { useInnerText: true });
+
+  await advance.click();
+  await expect(turn).toHaveText("4");
+  await expect(score).toHaveText("54 / 108");
+  await expect(open).toBeHidden();
+  await expect(forecasts.getByRole("row", { name: /Открыт · выбран/ })).toBeVisible();
+  await expect(page.getByText("Водосброс открыт.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Нижняя дорога · закрыт", { exact: true })).toBeVisible();
+
+  await order("Автобус А1", "Развязка");
+  await order("Паром", "Убежище");
+  await advance.click();
+  await expect(turn).toHaveText("5");
+  await expect(score).toHaveText("72 / 108");
+  await expect(vehicle("Автобус А1")).toContainText("Развязка");
+  await expect(page.getByText("Переправа · закрыт", { exact: true })).toBeVisible();
+  await expect(destination("Набережная")).toBeHidden();
+
+  await order("Автобус А1", "Больница");
+  await advance.click();
+  await expect(turn).toHaveText("6");
+  await order("Автобус А1", "Развязка");
+  await advance.click();
+  await expect(turn).toHaveText("7");
+  await expect(score).toHaveText("72 / 108");
+  await expect(vehicle("Автобус А1")).toContainText("18/18 мест занято");
+  await order("Автобус А1", "Убежище");
+  await advance.click();
+
+  const results = page.getByRole("region", { name: "Итоги эвакуации" });
+  await expect(turn).toHaveText("8");
+  await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
+  await expect(page.getByText("Мост · закрытие перед ходом 8", { exact: true })).toBeVisible();
+  for (const [district, values] of [["Больница", ["36", "0", "0"]], ["Школа", ["18", "0", "0"]], ["Набережная", ["36", "18", "0"]]]) {
+    await expect(results.getByRole("row", { name: new RegExp(district) }).getByRole("cell")).toHaveText(values);
+  }
+  await results.getByRole("button", { name: "Повторить" }).click();
+  await expect(score).toHaveText("0 / 108");
+  await expect(forecasts.getByRole("row", { name: /выбран/ })).toHaveCount(0);
+  await expect(page.locator("#journal > li")).toHaveCount(0);
+  await advance.click();
+  await advance.click();
+  await expect(turn).toHaveText("3");
+  await expect(open).not.toBeChecked();
+  await expect(keepClosed).not.toBeChecked();
+  await expect(advance).toBeDisabled();
 });
 
 test("Встречные автобусы блокируют ход, приказ можно снять", async ({ page }) => {
