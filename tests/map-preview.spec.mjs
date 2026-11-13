@@ -52,6 +52,8 @@ async function clickMarker(canvas, [x, y]) {
 
 test("План А от первого приказа до итога и повтора", async ({ page, baseURL }) => {
   const problems = watchPage(page, baseURL);
+  const requests = [];
+  page.on("request", (request) => requests.push(new URL(request.url()).pathname));
   const response = await page.goto("./");
   expect(response?.ok()).toBe(true);
 
@@ -60,6 +62,8 @@ test("План А от первого приказа до итога и повт
   const turn = page.locator("#turn-number");
   const { advance, vehicle, destination, order } = controls(page);
   await expect(canvas).toBeVisible();
+  await expect(page.getByRole("button", { name: "Звуки игры" })).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => page.evaluate(() => document.fonts.check('700 38px "Bridge Inter"', "Убежище"))).toBe(true);
   await expect(advance).toBeEnabled();
   expect(await canvas.evaluate((element) =>
     Boolean(element.getContext("webgl2") || element.getContext("webgl"))
@@ -143,6 +147,7 @@ test("План А от первого приказа до итога и повт
 
   const results = page.getByRole("region", { name: "Итоги эвакуации" });
   await expect(results).toBeVisible();
+  await expect(results.locator(".icon-rotate")).toHaveCSS("mask-image", /assets\/tabler\/rotate\.svg/);
   await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
   await expect(results.getByText("Мост и паромная переправа закрыты.")).toBeVisible();
   await expect(page.getByText("Переправа · закрытие перед ходом 7")).toBeVisible();
@@ -170,6 +175,13 @@ test("План А от первого приказа до итога и повт
   if (new URL(baseURL).pathname !== "/") {
     await expect(page.locator("script[type=module][src]")).toHaveAttribute("src", /^\.\/assets\//);
   }
+  expect(requests).toEqual(expect.arrayContaining([
+    expect.stringMatching(/\/assets\/tabler\/bus\.svg$/),
+    expect.stringMatching(/\/assets\/tabler\/ship\.svg$/),
+    expect.stringMatching(/\/assets\/tabler\/rotate\.svg$/),
+    expect.stringMatching(/\/assets\/inter\/InterVariable\.woff2$/),
+  ]));
+  expect(requests.some((path) => path.endsWith(".ogg"))).toBe(false);
   expect(problems).toEqual([]);
 });
 
@@ -288,4 +300,58 @@ test("Встречные автобусы блокируют ход, прика�
   await expect(advance).toBeEnabled();
   await advance.click();
   await expect(page.locator("#score")).toHaveText("18 / 108");
+});
+
+test("Ассеты и лицензии доступны локально, звук включается и отключается", async ({ page, baseURL }) => {
+  const problems = watchPage(page, baseURL);
+  await page.addInitScript(() => {
+    window.playedCues = [];
+    const play = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = async function () {
+      await play.call(this);
+      window.playedCues.push(this.currentSrc.split("/").at(-1));
+    };
+  });
+  await page.goto("./");
+  const { advance, destination } = controls(page);
+  const sound = page.getByRole("button", { name: "Звуки игры" });
+  const cues = () => page.evaluate(() => window.playedCues);
+  await expect(sound).toHaveText("Звук выкл.");
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-pressed", "true");
+
+  await destination("Больница").click();
+  await expect.poll(cues).toEqual(["click_001.ogg"]);
+  await advance.click();
+  await expect.poll(cues).toEqual(["click_001.ogg", "confirmation_001.ogg"]);
+  await advance.click();
+  await expect.poll(cues).toHaveLength(3);
+  await page.getByRole("radio", { name: "Оставить закрытым" }).check();
+  await advance.click();
+  await expect.poll(cues).toHaveLength(4);
+  expect((await cues()).at(-1)).toBe("switch_001.ogg");
+
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-pressed", "false");
+  await advance.click();
+  await expect(page.locator("#turn-number")).toHaveText("5");
+  expect(await cues()).toHaveLength(4);
+
+  const credits = page.getByRole("link", { name: "Авторы и лицензии ассетов" });
+  const url = new URL(await credits.getAttribute("href"), page.url());
+  expect(url.pathname).toBe(new URL("assets/CREDITS.txt", baseURL).pathname);
+  const attribution = await page.request.get(url.href);
+  expect(attribution.ok()).toBe(true);
+  expect(await attribution.text()).toMatch(/Paweł Kuna[\s\S]*The Inter Project Authors[\s\S]*Kenney/);
+
+  for (const [file, text] of [
+    ["tabler/LICENSE.txt", "MIT License"],
+    ["inter/LICENSE.txt", "SIL OPEN FONT LICENSE"],
+    ["kenney/License.txt", "Creative Commons Zero"],
+  ]) {
+    const license = await page.request.get(new URL(file, url).href);
+    expect(license.ok()).toBe(true);
+    expect(await license.text()).toContain(text);
+  }
+  expect(problems).toEqual([]);
 });

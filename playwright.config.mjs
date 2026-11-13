@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 const developmentUrl = "http://127.0.0.1:5180/";
-const previewUrl = "http://127.0.0.1:4180/stage-4/";
+const previewUrl = "http://127.0.0.1:4180/stage-5/";
 
 export default defineConfig({
   testDir: "./tests",
@@ -22,7 +22,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: "npm run preview -- --port 4180 --strictPort --base /stage-4/",
+      command: "npm run preview -- --port 4180 --strictPort --base /stage-5/",
       url: previewUrl,
       reuseExistingServer: false,
     },
