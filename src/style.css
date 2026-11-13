@@ -232,36 +232,6 @@ h2 { font-size: 1.1rem; }
 .routes .last-chance { background: #fbefd7; }
 .routes .last-chance span { color: #764b18; font-weight: 600; }
 
-.forecast {
-  border-top: 1px solid var(--border);
-  padding: 0.65rem 0.9rem;
-}
-
-.forecast summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 650;
-}
-
-.forecast summary::-webkit-details-marker { display: none; }
-.forecast summary::before {
-  content: "";
-  width: 0.42rem;
-  height: 0.42rem;
-  border: solid var(--accent);
-  border-width: 0 1.5px 1.5px 0;
-  transform: rotate(-45deg);
-}
-
-.forecast[open] summary::before { transform: rotate(45deg); }
-#floodgate-status { margin-inline-start: auto; color: var(--muted); font-size: 0.79rem; font-weight: 500; }
-.forecast table { margin-top: 0.65rem; }
-.forecast caption { text-align: start; color: var(--muted); padding-bottom: 0.3rem; }
-.forecast-active { background: #e5efe7; }
-.forecast-status { font-weight: 500; color: var(--muted); }
-
 .floodgate-choice {
   min-width: 0;
   margin: 0 0 1rem;

@@ -127,10 +127,6 @@ test("План А от первого приказа до итога и повт
   await page.getByRole("button", { name: "Закрыть", exact: true }).click();
   await expect(help).toBeFocused();
   await expect(score).toHaveText("0 / 108");
-  await page.getByText("Прогноз закрытий", { exact: true }).click();
-  await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Закрыт/ }).getByRole("cell")).toHaveText(["4", "6"]);
-  await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Открыт/ }).getByRole("cell")).toHaveText(["9", "4"]);
-  await page.getByText("Прогноз закрытий", { exact: true }).click();
   await expect(page.getByRole("radio", { name: "Оставить закрытым" })).toBeHidden();
 
   await vehicle("Паром").click();
@@ -275,7 +271,6 @@ test("План Б: прогноз можно менять до подтверж�
   const { advance, vehicle, destination, order, route, confirmation } = controls(page);
   const keepClosed = page.getByRole("radio", { name: "Оставить закрытым" });
   const open = page.getByRole("radio", { name: "Открыть водосброс" });
-  const forecasts = page.getByRole("table", { name: "Последний доступный ход" });
 
   await vehicle("Автобус А1").click();
   await clickMarker(page.locator("#map canvas"), markers.embankment);
@@ -336,8 +331,6 @@ test("План Б: прогноз можно менять до подтверж�
   const ferryLabel = page.getByRole("button", { name: "Переправа", exact: true });
   await ferryLabel.click();
   await expect(page.getByRole("region", { name: "Переправа", exact: true })).toContainText("Последний проезд: ход 4.");
-  await page.getByText("Прогноз закрытий", { exact: true }).click();
-  await expect(forecasts.getByRole("row", { name: /Открыт · выбран/ })).toBeVisible();
   await page.getByText("Журнал эвакуации", { exact: true }).click();
   await expect(page.getByText("Водосброс открыт.", { exact: true })).toBeVisible();
   await expect(routeStatus(page, "Нижняя дорога")).toHaveText("Закрыто");
@@ -388,7 +381,6 @@ test("План Б: прогноз можно менять до подтверж�
   }
   await results.getByRole("button", { name: "Повторить" }).click();
   await expect(score).toHaveText("0 / 108");
-  await expect(forecasts.getByRole("row", { name: /выбран/ })).toHaveCount(0);
   await expect(page.locator("#journal > li")).toHaveCount(0);
   await expect(page.locator("#turn-feedback")).toBeEmpty();
   await confirmIncompleteTurn(page);

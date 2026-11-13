@@ -61,17 +61,12 @@ const journal = document.querySelector<HTMLOListElement>("#journal")!;
 const journalEmpty = document.querySelector<HTMLElement>("#journal-empty")!;
 const mapContext = document.querySelector<HTMLElement>("#map-context")!;
 
-const floodgateStatus = document.querySelector<HTMLElement>("#floodgate-status")!;
-const forecast = document.querySelector<HTMLElement>("#forecast")!;
-const forecastRows = document.querySelector<HTMLTableSectionElement>("#forecast-rows")!;
 const floodgateChoice = document.querySelector<HTMLFieldSetElement>("#floodgate-choice")!;
 const floodgateTitle = document.querySelector<HTMLElement>("#floodgate-title")!;
 const floodgateInputs = Array.from(floodgateChoice.querySelectorAll<HTMLInputElement>("input"));
 const forecastModes = ["closed", "open"] as const;
 const forecastCrossings = ["bridge", "ferry-crossing"] as const;
-const floodgateLabels: Record<FloodgateMode, string> = { closed: "Закрыт", open: "Открыт" };
 const forecasts = { closed: getRouteForecast("closed"), open: getRouteForecast("open") };
-const forecastRowsByMode = new Map<FloodgateMode, { row: HTMLTableRowElement; status: HTMLSpanElement }>();
 
 let state = createInitialState();
 let resolving = false;
@@ -266,25 +261,15 @@ for (const route of routes) {
 }
 
 for (const mode of forecastModes) {
-  const row = forecastRows.insertRow();
-  const heading = document.createElement("th");
-  heading.scope = "row";
-  const status = document.createElement("span");
-  status.className = "forecast-status";
-  heading.append(floodgateLabels[mode], status);
-  row.append(heading);
   const [bridgeTurn, ferryTurn] = forecastCrossings.map(
     (id) => forecasts[mode].find(({ route }) => route === id)!.lastOpenTurn,
   );
-  row.insertCell().textContent = String(bridgeTurn);
-  row.insertCell().textContent = String(ferryTurn);
   const bridgeTiming = bridgeTurn === firstScenario.maxTurns
     ? `Мост останется открыт до конца ${bridgeTurn}-го хода.`
     : `Мост разрушится после ${bridgeTurn}-го хода.`;
   document.querySelector("#floodgate-" + mode + "-timing")!.replaceChildren(
     bridgeTiming, document.createElement("br"), `Паром перестанет ходить после ${ferryTurn}-го хода.`,
   );
-  forecastRowsByMode.set(mode, { row, status });
 }
 
 for (const input of floodgateInputs) {
@@ -295,21 +280,10 @@ for (const input of floodgateInputs) {
   });
 }
 
-function renderForecast() {
-  const shownMode = state.floodgate ?? draftFloodgate ?? "closed";
-  const chosen = state.floodgate !== null;
+function renderFloodgateChoice() {
   floodgateChoice.hidden = !isDecisionTurn();
   for (const input of floodgateInputs) input.checked = input.value === draftFloodgate;
   floodgateChoice.disabled = resolving;
-  for (const [mode, { row, status }] of forecastRowsByMode) {
-    const isShown = shownMode === mode;
-    row.classList.toggle("forecast-active", isShown);
-    status.textContent = isShown ? (chosen ? " · выбран" : " · на карте") : "";
-  }
-  floodgateStatus.textContent = chosen
-    ? "Водосброс " + floodgateLabels[shownMode].toLowerCase()
-    : draftFloodgate ? "Предпросмотр" : "До выбора водосброса";
-  return shownMode;
 }
 
 function describeNextStep() {
@@ -336,7 +310,8 @@ function render() {
   const issues = validateTurn(state, turnOrders());
   const conflicts = issues.filter((issue) => issue.kind === "route-capacity");
   const needsFloodgate = issues.some((issue) => issue.kind === "floodgate-choice-required");
-  const forecastMode = renderForecast();
+  renderFloodgateChoice();
+  const forecastMode = state.floodgate ?? draftFloodgate ?? "closed";
   const finished = state.endReason !== null;
   const report = getEvacuationReport(state);
   const unassigned = unassignedVehicles();
@@ -600,7 +575,6 @@ restart.addEventListener("click", () => {
 
 const scene = new MapPreview(assign, selectVehicle, () => {
   loading.hidden = true;
-  forecast.hidden = false;
   render();
   routeLabels.hidden = false;
   shelterCount.hidden = false;
