@@ -45,6 +45,11 @@ function controls(page) {
   };
 }
 
+function routeStatus(page, name) {
+  return page.getByRole("list", { name: "Состояние маршрутов" })
+    .getByRole("listitem").filter({ hasText: name }).locator("span");
+}
+
 async function confirmIncompleteTurn(page) {
   const { advance, confirmation } = controls(page);
   await advance.click();
@@ -100,8 +105,10 @@ test("План А от первого приказа до итога и повт
   await expect(page.getByText(/После последнего доступного хода маршрут закроется/)).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(score).toHaveText("0 / 108");
+  await page.getByText("Прогноз закрытий", { exact: true }).click();
   await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Закрыт/ }).getByRole("cell")).toHaveText(["4", "6"]);
   await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Открыт/ }).getByRole("cell")).toHaveText(["9", "4"]);
+  await page.getByText("Прогноз закрытий", { exact: true }).click();
   await expect(page.getByRole("radio", { name: "Оставить закрытым" })).toBeHidden();
 
   await vehicle("Паром").click();
@@ -153,7 +160,7 @@ test("План А от первого приказа до итога и повт
   await expect(turn).toHaveText("4");
   await expect(keepClosed).toBeHidden();
   await expect(score).toHaveText("54 / 108");
-  await expect(page.getByText("Нижняя дорога · закрыт", { exact: true })).toBeVisible();
+  await expect(routeStatus(page, "Нижняя дорога")).toHaveText("Закрыто");
 
   await vehicle("Паром").click();
   await clickMarker(canvas, markers.shelter);
@@ -161,7 +168,7 @@ test("План А от первого приказа до итога и повт
   await confirmIncompleteTurn(page);
   await expect(turn).toHaveText("5");
   await expect(score).toHaveText("72 / 108");
-  await expect(page.getByText("Мост · закрыт", { exact: true })).toBeVisible();
+  await expect(routeStatus(page, "Мост")).toHaveText("Закрыто");
   await expect(page.locator("#turn-feedback")).toContainText("С хода 5 проезд закрыт: мост.");
   await vehicle("Автобус А1").click();
   await expect(destination("Развязка")).toBeHidden();
@@ -180,6 +187,7 @@ test("План А от первого приказа до итога и повт
   await expect(results.locator(".icon-rotate")).toHaveCSS("mask-image", /assets\/tabler\/rotate\.svg/);
   await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
   await expect(results.getByText("Мост и паромная переправа закрыты.")).toBeVisible();
+  await page.getByText("Журнал эвакуации", { exact: true }).click();
   await expect(page.getByText("Переправа · закрытие перед ходом 7")).toBeVisible();
   await expect(turn).toHaveText("7");
   await expect(advance).toBeHidden();
@@ -196,10 +204,11 @@ test("План А от первого приказа до итога и повт
   await expect(score).toHaveText("0 / 108");
   await expect(page.locator("#journal > li")).toHaveCount(0);
   await expect(page.locator("#turn-feedback")).toBeEmpty();
-  await expect(page.getByText("Мост · последний ход 4", { exact: true })).toBeVisible();
-  await expect(vehicle("Автобус А1")).toContainText("Развязка · 0/18 мест занято");
-  await expect(vehicle("Автобус А2")).toContainText("Школа · 0/18 мест занято");
-  await expect(vehicle("Паром")).toContainText("Убежище · 0/18 мест занято");
+  await expect(routeStatus(page, "Мост")).toHaveText("По 4-й ход");
+  for (const [name, location] of [["Автобус А1", "Развязка"], ["Автобус А2", "Школа"], ["Паром", "Убежище"]]) {
+    await expect(vehicle(name).locator(".vehicle-location")).toHaveText(location);
+    await expect(vehicle(name).locator(".vehicle-occupancy")).toHaveText("0/18 мест занято");
+  }
   await expect(advance).toBeEnabled();
 
   if (new URL(baseURL).pathname !== "/") {
@@ -257,12 +266,12 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(open).toBeChecked();
   await expect(advance).toBeEnabled();
   await expect(advance).toHaveText("Выполнить ход");
-  await expect(page.getByText("Мост · последний ход 9", { exact: true })).toBeVisible();
-  await expect(page.getByText("Переправа · последний ход 4", { exact: true })).toBeVisible();
-  await expect(page.getByText("Нижняя дорога · последний ход 3", { exact: true })).toBeVisible();
+  await expect(routeStatus(page, "Мост")).toHaveText("По 9-й ход");
+  await expect(routeStatus(page, "Переправа")).toHaveText("По 4-й ход");
+  await expect(routeStatus(page, "Нижняя дорога")).toHaveText("Последний ход");
   await keepClosed.check();
-  await expect(page.getByText("Мост · последний ход 4", { exact: true })).toBeVisible();
-  await expect(page.getByText("Переправа · последний ход 6", { exact: true })).toBeVisible();
+  await expect(routeStatus(page, "Мост")).toHaveText("По 4-й ход");
+  await expect(routeStatus(page, "Переправа")).toHaveText("По 6-й ход");
   await open.check();
   await expect(turn).toHaveText("3");
   await expect(score).toHaveText("36 / 108");
@@ -275,9 +284,11 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(turn).toHaveText("4");
   await expect(score).toHaveText("54 / 108");
   await expect(open).toBeHidden();
+  await page.getByText("Прогноз закрытий", { exact: true }).click();
   await expect(forecasts.getByRole("row", { name: /Открыт · выбран/ })).toBeVisible();
+  await page.getByText("Журнал эвакуации", { exact: true }).click();
   await expect(page.getByText("Водосброс открыт.", { exact: true })).toBeVisible();
-  await expect(page.getByText("Нижняя дорога · закрыт", { exact: true })).toBeVisible();
+  await expect(routeStatus(page, "Нижняя дорога")).toHaveText("Закрыто");
 
   await order("Автобус А1", "Развязка");
   await order("Паром", "Убежище");
@@ -285,7 +296,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(turn).toHaveText("5");
   await expect(score).toHaveText("72 / 108");
   await expect(vehicle("Автобус А1")).toContainText("Развязка");
-  await expect(page.getByText("Переправа · закрыт", { exact: true })).toBeVisible();
+  await expect(routeStatus(page, "Переправа")).toHaveText("Закрыто");
   await expect(page.locator("#turn-feedback")).toContainText("С хода 5 проезд закрыт: переправа.");
   await expect(destination("Набережная")).toBeHidden();
 

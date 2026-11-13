@@ -33,6 +33,8 @@ const unassignedMessage = document.querySelector<HTMLElement>("#unassigned-messa
 const confirmAdvance = document.querySelector<HTMLButtonElement>("#confirm-advance")!;
 const restart = document.querySelector<HTMLButtonElement>("#restart")!;
 const orderStatus = document.querySelector<HTMLElement>("#order-status")!;
+const orderCount = document.querySelector<HTMLElement>("#order-count")!;
+const destinationHeading = document.querySelector<HTMLElement>("#destination-heading")!;
 const turnGuide = document.querySelector<HTMLElement>("#turn-guide")!;
 const turnFeedback = document.querySelector<HTMLElement>("#turn-feedback")!;
 const gameHelp = document.querySelector<HTMLDetailsElement>(".game-help")!;
@@ -47,6 +49,7 @@ const resultReason = document.querySelector<HTMLElement>("#result-reason")!;
 const resultRows = document.querySelector<HTMLTableSectionElement>("#district-results")!;
 const journal = document.querySelector<HTMLOListElement>("#journal")!;
 const journalEmpty = document.querySelector<HTMLElement>("#journal-empty")!;
+const mapContext = document.querySelector<HTMLElement>("#map-context")!;
 
 const floodgateStatus = document.querySelector<HTMLElement>("#floodgate-status")!;
 const forecast = document.querySelector<HTMLElement>("#forecast")!;
@@ -87,7 +90,7 @@ for (const district of districtIds) {
 }
 
 const routeList = document.querySelector("#routes")!;
-const routeItems = new Map<ScenarioRouteId, HTMLLIElement>();
+const routeItems = new Map<ScenarioRouteId, { item: HTMLLIElement; status: HTMLElement }>();
 
 function makeButton(parent: Element, label: string, onClick: () => void) {
   const button = document.createElement("button");
@@ -153,12 +156,17 @@ for (const id of nodeIds) {
   destinationButtons.set(id, makeButton(destinationGroup, nodes[id].label, () => assign(id)));
 }
 const wait = makeButton(destinationGroup, "Ждать", () => assign(null));
+wait.classList.add("wait-order");
 
 for (const route of routes) {
   if (route.lastOpenTurn === null) continue;
   const item = document.createElement("li");
+  const label = document.createElement("strong");
+  label.textContent = route.label;
+  const status = document.createElement("span");
+  item.append(label, status);
   routeList.append(item);
-  routeItems.set(route.id, item);
+  routeItems.set(route.id, { item, status });
 }
 
 for (const mode of forecastModes) {
@@ -200,7 +208,7 @@ function renderForecast() {
   }
   floodgateStatus.textContent = chosen
     ? "Водосброс " + floodgateLabels[shownMode].toLowerCase()
-    : "На карте прогноз: водосброс " + floodgateLabels[shownMode].toLowerCase();
+    : draftFloodgate ? "Предпросмотр" : "До выбора водосброса";
   return shownMode;
 }
 
@@ -233,6 +241,8 @@ function render() {
 
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
+  orderCount.textContent = Object.keys(moves).length + " из " + vehicleIds.length + " назначено";
+  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути" : "Выбран транспорт · " + vehicleName(selected);
   for (const [district, count] of queueCounts) {
     count.data = String(report.districts[district].waiting);
   }
@@ -254,7 +264,15 @@ function render() {
     icon.setAttribute("aria-hidden", "true");
     title.append(icon, vehicleName(id));
     const location = document.createElement("span");
-    location.textContent = nodes[current.node].label + " · " + (current.passengers?.count ?? 0) + "/" + vehicles[id].seats + " мест занято";
+    location.className = "vehicle-location";
+    location.textContent = nodes[current.node].label;
+    const occupancy = document.createElement("span");
+    occupancy.className = "vehicle-occupancy";
+    const passengerCount = (current.passengers?.count ?? 0) + "/" + vehicles[id].seats;
+    const occupancyDescription = document.createElement("span");
+    occupancyDescription.className = "sr-only";
+    occupancyDescription.textContent = " мест занято";
+    occupancy.append(passengerCount, occupancyDescription);
     const order = document.createElement("span");
     order.id = id + "-order";
     order.className = "vehicle-order";
@@ -266,15 +284,19 @@ function render() {
       checkmark.textContent = "✓ ";
       order.prepend(checkmark);
     }
-    button.replaceChildren(title, location, order);
+    button.replaceChildren(title, occupancy, location, order);
     button.disabled = resolving;
     button.setAttribute("aria-pressed", String(id === selected));
-    button.setAttribute("aria-describedby", conflict ? order.id + " order-status" : order.id);
+    location.id = id + "-location";
+    occupancy.id = id + "-occupancy";
+    const description = location.id + " " + occupancy.id + " " + order.id;
+    button.setAttribute("aria-describedby", conflict ? description + " order-status" : description);
     button.classList.toggle("planned", planned);
     button.classList.toggle("conflict", conflict);
   }
 
   destinationGroup.setAttribute("aria-label", "Назначить маршрут · " + vehicleName(selected));
+  destinationHeading.textContent = "Куда направить · " + vehicleName(selected);
   for (const [id, button] of destinationButtons) {
     button.hidden = !available.includes(id);
     button.disabled = resolving;
@@ -291,24 +313,26 @@ function render() {
   } else if (conflicts.length) {
     orderStatus.textContent = "На мосту два приказа. Измени маршрут одного автобуса.";
   } else if (moves[selected] !== undefined) {
-    orderStatus.textContent = "Приказ принят. Можно назначить маршрут другой машине или выполнить ход.";
+    orderStatus.textContent = "";
   } else {
     orderStatus.textContent = available.length
-      ? "Выбери соседний узел на карте или в списке."
+      ? "Выбери пункт на карте или кнопкой."
       : "Открытых маршрутов нет. Можно назначить «Ждать».";
   }
   orderStatus.classList.toggle("error", conflicts.length > 0);
 
   for (const { route, lastOpenTurn } of forecasts[forecastMode]) {
-    const item = routeItems.get(route);
-    if (!item) continue;
+    const entry = routeItems.get(route);
+    if (!entry) continue;
     const closed = state.closedRoutes.includes(route);
-    item.textContent = routeName(route) + " · " + (closed ? "закрыт" : "последний ход " + lastOpenTurn);
-    item.classList.toggle("closed", closed);
+    const lastChance = !closed && lastOpenTurn === state.turn;
+    entry.status.textContent = closed ? "Закрыто" : lastChance ? "Последний ход" : "По " + lastOpenTurn + "-й ход";
+    entry.item.classList.toggle("closed", closed);
+    entry.item.classList.toggle("last-chance", lastChance);
   }
 
   scene.renderState({
-    state, moves, selected, available, forecastMode, resolving,
+    state, moves, selected, available, resolving,
     conflicts: conflicts.map((issue) => issue.route),
   });
 }
@@ -473,8 +497,9 @@ async function startGame() {
     parent: mapElement,
     width: map.width,
     height: map.height,
-    backgroundColor: "#f3eee1",
+    backgroundColor: "#f1f0e8",
     scene,
+    input: { windowEvents: false },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     banner: false,
     audio: { noAudio: true },

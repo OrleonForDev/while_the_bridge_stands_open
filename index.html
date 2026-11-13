@@ -41,7 +41,10 @@
       <div class="layout">
         <section class="map-panel" aria-labelledby="map-title">
           <header class="map-heading">
-            <h2 id="map-title">Карта эвакуации</h2>
+            <div>
+              <h2 id="map-title">Карта эвакуации</h2>
+              <p id="map-context" class="map-context"></p>
+            </div>
             <p class="map-turn" aria-live="polite" aria-atomic="true">Ход <strong id="turn-number">1</strong></p>
           </header>
           <div class="map-view">
@@ -52,29 +55,33 @@
               <strong id="score"></strong>
             </p>
           </div>
-          <div id="turn-feedback" class="turn-feedback" role="status" aria-atomic="true"></div>
-          <div class="map-footer">
-            <span id="floodgate-status"></span>
-            <span>Мост пропускает один автобус за ход</span>
-          </div>
           <ul id="district-queues" class="district-queues" aria-label="Ожидают эвакуации по районам"></ul>
           <ul id="routes" class="routes" aria-label="Состояние маршрутов"></ul>
-          <section id="forecast" class="forecast" aria-labelledby="forecast-title" hidden>
-            <h2 id="forecast-title">Прогноз закрытий</h2>
-            <p class="hint">По маршруту можно проехать и в указанный ход.</p>
+          <div id="turn-feedback" class="turn-feedback" role="status" aria-atomic="true"></div>
+          <details id="forecast" class="forecast" hidden>
+            <summary><span>Прогноз закрытий</span><span id="floodgate-status"></span></summary>
             <table aria-label="Последний доступный ход">
+              <caption>Последний доступный ход включительно</caption>
               <thead>
                 <tr><th scope="col">Водосброс</th><th scope="col">Мост</th><th scope="col">Паром</th></tr>
               </thead>
               <tbody id="forecast-rows"></tbody>
             </table>
-          </section>
+          </details>
         </section>
 
         <div class="panel">
           <div id="planning" hidden>
-            <h2 id="orders-title">Приказы</h2>
+            <div class="orders-heading">
+              <h2 id="orders-title">Приказы</h2>
+              <span id="order-count" class="order-count"></span>
+            </div>
             <p id="turn-guide" class="turn-guide"></p>
+            <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
+            <h3 id="destination-heading" class="destination-heading">Куда направить</h3>
+            <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
+            <p id="order-status" class="hint" role="status"></p>
+            <button type="button" id="advance" class="primary" aria-describedby="order-status">Выполнить ход</button>
             <details class="game-help">
               <summary>Как играть</summary>
               <ul>
@@ -84,10 +91,6 @@
                 <li>На третьем ходу выбери режим водосброса. Открытие продлит работу моста, но сократит время работы парома.</li>
               </ul>
             </details>
-            <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
-            <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
-            <p id="order-status" class="hint" role="status"></p>
-            <button type="button" id="advance" class="primary" aria-describedby="order-status">Выполнить ход</button>
           </div>
           <section id="result" aria-labelledby="result-title" hidden>
             <h2 id="result-title" tabindex="-1">Итоги эвакуации</h2>
@@ -104,11 +107,11 @@
         </div>
       </div>
 
-      <section class="journal" aria-labelledby="journal-title">
-        <h2 id="journal-title">Журнал эвакуации</h2>
+      <details class="journal">
+        <summary>Журнал эвакуации</summary>
         <p id="journal-empty" class="hint">Здесь появятся события первого хода.</p>
         <ol id="journal"></ol>
-      </section>
+      </details>
       <footer class="credits"><a href="%BASE_URL%assets/CREDITS.txt">Авторы и лицензии ассетов</a> · <span id="build-version"></span></footer>
     </main>
     <dialog id="unassigned-dialog" aria-labelledby="unassigned-title" aria-describedby="unassigned-message">

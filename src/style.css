@@ -8,15 +8,15 @@
 
 :root {
   color-scheme: light;
-  background: #faf7ee;
-  color: #243b39;
+  background: #e9ede7;
+  color: #243c39;
   font-family: "Bridge Inter", "Segoe UI", sans-serif;
-  --ink: #243b39;
-  --muted: #4c6159;
-  --accent: #126a62;
-  --border: #a6b4a8;
-  --card: #fffdf6;
-  --error: #983825;
+  --ink: #243c39;
+  --muted: #4d6259;
+  --accent: #11675e;
+  --border: #c6d1c7;
+  --card: #fdfcf7;
+  --error: #9a422e;
 }
 
 * { box-sizing: border-box; }
@@ -25,40 +25,40 @@ body { margin: 0; }
 
 .board {
   width: min(100% - 2rem, 1240px);
-  margin: clamp(1.4rem, 4vw, 3.25rem) auto 2rem;
+  margin: clamp(1.25rem, 3vw, 2.6rem) auto 2rem;
 }
 
 .intro {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-block-end: 1.4rem;
+  margin-block-end: 1.25rem;
 }
 
 h1, h2, p { margin: 0; }
 
 h1 {
-  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-size: clamp(1.9rem, 4.2vw, 2.8rem);
   letter-spacing: -0.045em;
   line-height: 1.06;
 }
 
-h2 { font-size: 1.2rem; }
+h2 { font-size: 1.1rem; }
 .instruction { margin-top: 0.55rem; color: var(--muted); }
 .sound-toggle { min-width: 7.2rem; font-size: 0.87rem; }
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 2.45fr) minmax(18rem, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
   gap: 1rem;
   align-items: start;
 }
 
 .map-panel, .panel, .journal {
   border: 1px solid var(--border);
-  border-radius: 0.65rem;
+  border-radius: 0.8rem;
   background: var(--card);
 }
 
@@ -69,18 +69,19 @@ h2 { font-size: 1.2rem; }
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.55rem 0.8rem;
+  padding: 0.75rem 0.95rem;
   border-bottom: 1px solid var(--border);
 }
 
 .map-heading h2 { font-size: 1rem; }
+.map-context { margin-top: 0.18rem; color: var(--muted); font-size: 0.8rem; }
 .map-turn {
   flex: none;
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
   padding: 0.2rem 0.65rem;
-  border-radius: 0.35rem;
+  border-radius: 0.45rem;
   background: var(--accent);
   color: #fff;
   font-weight: 600;
@@ -93,7 +94,7 @@ h2 { font-size: 1.2rem; }
   width: 100%;
   aspect-ratio: 1740 / 840;
   overflow: hidden;
-  background: #f3eee1;
+  background: #f1f0e8;
 }
 
 #map canvas { display: block; }
@@ -104,9 +105,10 @@ h2 { font-size: 1.2rem; }
   display: flex;
   align-items: center;
   gap: 0.25em;
-  padding: 0.1em 0.3em;
-  background: #f3eee1;
-  border-radius: 0.25em;
+  padding: 0.14em 0.45em;
+  background: #f4faf5;
+  border: 1px solid #a9c3b5;
+  border-radius: 0.45em;
   color: var(--ink);
   font-size: clamp(0.72rem, 2cqw, 1.1rem);
   font-variant-numeric: tabular-nums;
@@ -114,29 +116,59 @@ h2 { font-size: 1.2rem; }
   pointer-events: none;
 }
 
-.map-footer, .routes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 1rem;
-  padding: 0.7rem 0.9rem;
+.routes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding: 0;
   margin: 0;
   border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.85rem;
+  list-style: none;
 }
 
-.routes { list-style: none; }
-.routes .closed { color: var(--error); }
-.routes .closed::before { content: "× "; }
+.routes li {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.83rem;
+}
+
+.routes li + li { border-inline-start: 1px solid var(--border); }
+.routes li span { color: var(--muted); font-size: 0.79rem; }
+.routes .closed { background: #f8ede7; }
+.routes .closed span { color: var(--error); }
+.routes .closed span::before { content: "× "; }
+.routes .last-chance { background: #fbefd7; }
+.routes .last-chance span { color: #764b18; font-weight: 600; }
 
 .forecast {
   border-top: 1px solid var(--border);
-  padding: 0.8rem 0.9rem;
+  padding: 0.65rem 0.9rem;
 }
 
-.forecast h2 { font-size: 1rem; }
-.forecast .hint { margin-top: 0.25rem; }
-.forecast table { margin-top: 0.4rem; }
+.forecast summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.forecast summary::-webkit-details-marker { display: none; }
+.forecast summary::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border: solid var(--accent);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+
+.forecast[open] summary::before { transform: rotate(45deg); }
+#floodgate-status { margin-inline-start: auto; color: var(--muted); font-size: 0.79rem; font-weight: 500; }
+.forecast table { margin-top: 0.65rem; }
+.forecast caption { text-align: start; color: var(--muted); padding-bottom: 0.3rem; }
 .forecast-active { background: #e5efe7; }
 .forecast-status { font-weight: 500; color: var(--muted); }
 
@@ -185,10 +217,10 @@ h2 { font-size: 1.2rem; }
 .floodgate-timing { display: block; margin-top: 0.15rem; font-size: 0.88rem; }
 
 .turn-feedback:not(:empty) {
-  padding: 0.7rem 0.9rem;
+  padding: 0.65rem 0.9rem;
   border-top: 1px solid var(--border);
-  background: #e5efe7;
-  font-size: 0.9rem;
+  background: #edf4ee;
+  font-size: 0.83rem;
   line-height: 1.45;
 }
 
@@ -196,25 +228,30 @@ h2 { font-size: 1.2rem; }
 
 .turn-guide {
   margin-top: 0.55rem;
-  color: var(--ink);
-  font-size: 0.92rem;
+  color: var(--muted);
+  font-size: 0.83rem;
   line-height: 1.45;
 }
 
-.game-help { margin-top: 0.55rem; font-size: 0.87rem; color: var(--muted); }
-.game-help summary { color: var(--accent); cursor: pointer; font-weight: 600; }
+.game-help { margin-top: 0.85rem; font-size: 0.83rem; color: var(--muted); }
+summary { color: var(--accent); cursor: pointer; font-weight: 600; }
 .game-help ul { margin: 0.45rem 0 0; padding-left: 1.2rem; line-height: 1.45; }
 .game-help li + li { margin-top: 0.25rem; }
 
 .panel, .journal { padding: 1rem; }
-.vehicles { display: grid; gap: 0.4rem; margin-block: 0.8rem; }
-.destinations { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.orders-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.4rem; }
+.order-count { color: var(--muted); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.vehicles { display: grid; gap: 0.45rem; margin-block: 0.85rem; }
+.destination-heading { margin: 0 0 0.45rem; font-size: 0.85rem; }
+.destinations { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.destinations button { font-size: 0.82rem; min-height: 2.25rem; }
+.destinations .wait-order:not([aria-pressed="true"]) { border-style: dashed; }
 
 button {
   min-height: 2.6rem;
   padding: 0.45rem 0.65rem;
-  border: 1px solid #82968a;
-  border-radius: 0.35rem;
+  border: 1px solid #a0b1a5;
+  border-radius: 0.45rem;
   background: var(--card);
   color: inherit;
   font: inherit;
@@ -231,8 +268,15 @@ button[aria-pressed="true"] {
 button:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 button:disabled { opacity: 0.55; cursor: default; }
 
-.vehicles button { display: grid; gap: 0.2rem; text-align: left; }
-.vehicles strong { display: flex; align-items: center; gap: 0.45rem; }
+.vehicles button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.15rem 0.4rem;
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+}
+.vehicles strong { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; }
 
 .asset-icon {
   display: inline-block;
@@ -243,7 +287,7 @@ button:disabled { opacity: 0.55; cursor: default; }
   mask: var(--icon) center / contain no-repeat;
 }
 
-.vehicles .asset-icon { width: 2rem; height: 1.375rem; color: inherit; }
+.vehicles .asset-icon { width: 1.55rem; height: 1.1rem; color: inherit; }
 .icon-bus { --icon: url("/assets/transport/bus.svg"); }
 .icon-ferry { --icon: url("/assets/transport/ferry.svg"); }
 .icon-people { --icon: url("/assets/transport/people.svg"); }
@@ -251,15 +295,17 @@ button:disabled { opacity: 0.55; cursor: default; }
 #restart { display: flex; align-items: center; justify-content: center; gap: 0.45rem; }
 .credits { margin-top: 1rem; font-size: 0.85rem; }
 .credits a { color: var(--accent); }
-.vehicles span { color: var(--muted); font-size: 0.85rem; font-weight: 500; }
-.vehicles button.planned { background: #e5f3e9; border-color: #57816a; }
-.vehicles button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--accent); }
+.vehicles span { color: var(--muted); font-size: 0.77rem; font-weight: 500; }
+.vehicle-occupancy { justify-self: end; font-variant-numeric: tabular-nums; }
+.vehicle-order { text-align: end; overflow-wrap: anywhere; }
 .vehicles button.planned .vehicle-order, .vehicles .vehicle-order span { color: #206341; font-weight: 700; }
+.vehicles button[aria-pressed="true"] { box-shadow: inset 3px 0 var(--accent); }
 .vehicles button.conflict { background: #f9e9e1; border-color: var(--error); }
 .vehicles button.conflict .vehicle-order, .vehicles button.conflict .vehicle-order span, .hint.error { color: var(--error); }
 
 .hint { color: var(--muted); font-size: 0.89rem; line-height: 1.35; }
 .panel .hint { margin-top: 0.6rem; }
+.panel .hint:empty { display: none; }
 
 .primary {
   width: 100%;
@@ -325,6 +371,10 @@ th:first-child { text-align: left; overflow-wrap: anywhere; }
 }
 
 @media (max-width: 600px) {
+  .routes li { padding-inline: 0.55rem; }
+  .routes li strong { font-size: 0.76rem; }
+  .routes li span { font-size: 0.73rem; }
+  .destinations button { min-height: 2.75rem; }
   .district-queues {
     position: static;
     display: flex;

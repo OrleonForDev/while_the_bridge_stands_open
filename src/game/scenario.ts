@@ -11,7 +11,6 @@ type RouteId = "bridge" | "ferry-crossing" | "lower-road" | "hospital-road" | "s
 
 type MapNode = {
   label: string;
-  symbol: string;
   x: number;
   y: number;
 };
@@ -40,11 +39,11 @@ export const firstScenario = {
   decisionTurn: 3,
   maxTurns,
   nodes: {
-    shelter: { label: "Убежище", symbol: "У", x: 286, y: 378 },
-    junction: { label: "Развязка", symbol: "Р", x: 1012, y: 378 },
-    hospital: { label: "Больница", symbol: "Б", x: 1250, y: 148 },
-    school: { label: "Школа", symbol: "Ш", x: 1482, y: 378 },
-    embankment: { label: "Набережная", symbol: "Н", x: 865, y: 676 },
+    shelter: { label: "Убежище", x: 286, y: 378 },
+    junction: { label: "Развязка", x: 1012, y: 378 },
+    hospital: { label: "Больница", x: 1250, y: 148 },
+    school: { label: "Школа", x: 1482, y: 378 },
+    embankment: { label: "Набережная", x: 865, y: 676 },
   } satisfies Record<NodeId, MapNode>,
   initialWaiting: { hospital: 36, school: 18, embankment: 54 } satisfies Record<DistrictId, number>,
   vehicles: {

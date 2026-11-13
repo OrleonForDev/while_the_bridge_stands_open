@@ -1,16 +1,16 @@
 import Phaser from "phaser";
 import { firstScenario, districtIds, vehicleIds } from "./game/scenario.ts";
-import type { DistrictId, FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import type { DistrictId, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
 import type { GameState, TurnEvent, TurnOrders } from "./game/turn.ts";
 
 const { map, nodes, routes, vehicles } = firstScenario;
 const nodeIds = Object.keys(nodes) as NodeId[];
-const ink = 0x243b39;
-const accent = 0x0c7565;
-const blocked = 0x983825;
-const paper = 0xf3eee1;
-const emptyTransport = "#71827b";
-const occupiedTransport = "#8a491e";
+const ink = 0x243c39;
+const accent = 0x11675e;
+const blocked = 0x9a422e;
+const paper = 0xf1f0e8;
+const emptyTransport = "#536961";
+const occupiedTransport = "#925119";
 const fontFamily = '"Bridge Inter", "Segoe UI", sans-serif';
 const transportSpacing = 104;
 const movementDuration = 950;
@@ -21,7 +21,6 @@ type MapView = {
   moves: NonNullable<TurnOrders["moves"]>;
   selected: VehicleId;
   available: readonly NodeId[];
-  forecastMode: FloodgateMode;
   conflicts: readonly ScenarioRouteId[];
   resolving: boolean;
 };
@@ -46,9 +45,9 @@ const westBank = points([[550, 0], [530, 108], [552, 212], [586, 330], [565, 440
 const eastBank = points([[810, 0], [776, 118], [801, 230], [836, 349], [816, 455], [772, 576], [784, 704], [828, map.height]]);
 
 const routeLabels = {
-  bridge: { x: 679, y: 317 },
-  "ferry-crossing": { x: 695, y: 552 },
-  "lower-road": { x: 1160, y: 545 },
+  bridge: { x: 679, y: 326 },
+  "ferry-crossing": { x: 640, y: 554 },
+  "lower-road": { x: 1138, y: 522 },
 } as const;
 
 const ferryBends = points([[400, 508], [543, 591], [677, 619], [770, 644]]);
@@ -139,8 +138,8 @@ export class MapPreview extends Phaser.Scene {
 
     for (const [id, position] of Object.entries(routeLabels)) {
       const text = this.add.text(position.x, position.y, "", {
-        fontFamily, fontSize: "29px", fontStyle: "bold",
-        color: "#243b39", backgroundColor: "#fffdf6", padding: { x: 11, y: 6 },
+        fontFamily, fontSize: "27px", fontStyle: "bold",
+        color: "#38534d", backgroundColor: "#f9f8f1", padding: { x: 13, y: 6 },
       }).setOrigin(0.5);
       this.routeText.set(id as ScenarioRouteId, text);
     }
@@ -156,18 +155,22 @@ export class MapPreview extends Phaser.Scene {
     this.onReady();
   }
 
-  renderState({ state, moves, selected, available, forecastMode, conflicts, resolving }: MapView) {
+  renderState({ state, moves, selected, available, conflicts, resolving }: MapView) {
     this.roads.clear();
     this.arrows.clear();
+    const origin = state.vehicles[selected].node;
     for (const route of routes) {
       const closed = state.closedRoutes.includes(route.id);
       const conflict = conflicts.includes(route.id);
       const ferry = route.vehicleKind === "ferry";
       const [from, to] = route.ends;
       const path = routePoints(route.id, from, to);
-      this.roads.lineStyle(15, 0xfffbf0);
+      const isAvailable = !resolving &&
+        ((from === origin && available.includes(to)) || (to === origin && available.includes(from)));
+      this.roads.lineStyle(route.id === "bridge" ? 20 : 14, 0xf9f8f1);
       strokePath(this.roads, path, closed || ferry);
-      this.roads.lineStyle(conflict ? 10 : 6, closed || conflict ? blocked : ferry ? accent : ink);
+      const lineColor = closed || conflict ? blocked : isAvailable ? accent : ferry ? 0x4c7178 : 0x74827b;
+      this.roads.lineStyle(conflict || isAvailable ? 8 : 5, lineColor);
       strokePath(this.roads, path, closed || ferry);
       if (closed) {
         const segment = Math.floor((path.length - 1) / 2);
@@ -179,12 +182,11 @@ export class MapPreview extends Phaser.Scene {
         this.roads.lineBetween(x - 11, y - 11, x + 11, y + 11);
         this.roads.lineBetween(x - 11, y + 11, x + 11, y - 11);
       }
-      const last = route.lastOpenTurn?.[forecastMode];
       const label = this.routeText.get(route.id);
       if (label) {
-        const detail = closed ? " × Закрыт" : conflict ? " · конфликт" : " · последний ход " + last;
+        const detail = closed ? " ×" : conflict ? " !" : "";
         label.setText(route.label + detail);
-        label.setColor(closed || conflict ? "#983825" : "#243b39");
+        label.setColor(closed || conflict ? "#9a422e" : "#38534d");
       }
     }
 
@@ -204,8 +206,9 @@ export class MapPreview extends Phaser.Scene {
 
     for (const [id, { marker, zone }] of this.markers) {
       const isAvailable = !resolving && available.includes(id);
-      marker.setFillStyle(isAvailable ? 0xd5eddf : 0xfffbf0);
-      marker.setStrokeStyle(isAvailable ? 8 : 5, isAvailable ? accent : ink);
+      const current = !resolving && !state.endReason && id === origin;
+      marker.setFillStyle(isAvailable || current ? 0xe3f1e8 : 0xf9f8f1);
+      marker.setStrokeStyle(isAvailable ? 7 : 3, isAvailable || current ? accent : 0x677a71);
       if (isAvailable) zone.setInteractive({ useHandCursor: true });
       else zone.disableInteractive();
     }
@@ -265,13 +268,10 @@ export class MapPreview extends Phaser.Scene {
   private drawTerrain() {
     const terrain = this.add.graphics();
     terrain.fillStyle(paper).fillRect(0, 0, map.width, map.height);
-    terrain.fillStyle(0xc7c3ad, 0.62);
-    for (let x = 24; x < map.width; x += 36) {
-      for (let y = 24; y < map.height; y += 36) terrain.fillCircle(x, y, 2);
-    }
-    terrain.fillStyle(0xb7d5d5).fillPoints([...westBank, ...[...eastBank].reverse()], true);
-    terrain.lineStyle(3, 0x84b2b3).strokePoints(westBank).strokePoints(eastBank);
-    terrain.lineStyle(2, 0x78a4a6, 0.65);
+    terrain.fillStyle(0xdce7df).fillPoints([...westBank, ...points([[0, map.height], [0, 0]])], true);
+    terrain.fillStyle(0xc0dce1).fillPoints([...westBank, ...[...eastBank].reverse()], true);
+    terrain.lineStyle(3, 0x9ebec2).strokePoints(westBank).strokePoints(eastBank);
+    terrain.lineStyle(2, 0x7ea9af, 0.65);
     for (const [index, west] of westBank.entries()) {
       if (index === 0 || index === westBank.length - 1) continue;
       const middle = (west.x + eastBank[index].x) / 2;
@@ -279,18 +279,18 @@ export class MapPreview extends Phaser.Scene {
       terrain.lineBetween(middle + 4, west.y + 17, middle + 47, west.y + 17);
     }
     for (const [x, text] of [[266, "ВЫСОКИЙ БЕРЕГ"], [672, "РЕКА"], [1470, "НИЗИНА"]] as const) {
-      this.add.text(x, 50, text, { fontFamily, fontSize: "24px", color: "#43645c" }).setOrigin(0.5);
+      this.add.text(x, 50, text, { fontFamily, fontSize: "24px", color: "#4a6864" }).setOrigin(0.5);
     }
   }
 
   private drawNode(id: NodeId) {
     const { x, y, label } = nodes[id];
-    const marker = this.add.circle(x, y, 40, 0xfffbf0).setStrokeStyle(5, ink);
+    const marker = this.add.circle(x, y, 40, 0xf9f8f1).setStrokeStyle(3, ink);
     const key = "node-" + id;
     if (this.textures.exists(key)) this.add.image(x, y, key).setScale(0.5);
     this.add.text(x, y + 58, label, {
-      fontFamily, fontSize: "37px", fontStyle: "bold", color: "#243b39",
-      backgroundColor: "#f3eee1", padding: { x: 8, y: 2 },
+      fontFamily, fontSize: "36px", fontStyle: "bold", color: "#243c39",
+      stroke: id === firstScenario.shelter ? "#dce7df" : "#f1f0e8", strokeThickness: 5,
     }).setOrigin(0.5, 0);
     const zone = this.add.zone(x, y + 20, 182, 122)
       .setInteractive({ useHandCursor: true })
@@ -305,7 +305,7 @@ export class MapPreview extends Phaser.Scene {
     }
     const count = this.add.text(x + 4, y + 123, "", {
       fontFamily, fontSize: "34px", fontStyle: "bold", color: "#243b39",
-      stroke: "#f3eee1", strokeThickness: 3,
+      stroke: "#f1f0e8", strokeThickness: 3,
     }).setOrigin(0, 0.5);
     this.queues.set(id, count);
   }
@@ -361,14 +361,14 @@ export class MapPreview extends Phaser.Scene {
     }
     const occupancy = this.add.text(iconX, -34, "", {
       fontFamily, fontSize: "28px", fontStyle: "bold", color: "#243b39",
-      stroke: "#f3eee1", strokeThickness: 4,
+      stroke: "#f1f0e8", strokeThickness: 4,
     }).setOrigin(0.5);
     const selection = this.add.rectangle(icon ? iconX : 0, 25, 32, 4, accent).setVisible(false);
     const zone = this.add.zone(0, -10, kind === "bus" ? 100 : 72, 72).setInteractive({ useHandCursor: true })
       .on("pointerup", () => this.onVehicle(id));
     const checkmark = this.add.text(kind === "bus" ? 40 : 32, -20, "✓", {
       fontFamily, fontSize: "22px", fontStyle: "bold", color: "#206341",
-      stroke: "#f3eee1", strokeThickness: 3,
+      stroke: "#f1f0e8", strokeThickness: 3,
     }).setOrigin(0.5).setVisible(false);
     const group = this.add.container(0, 0, [...parts, occupancy, selection, checkmark, zone]);
     this.transport.set(id, { group, fill, occupancy, selection, checkmark, zone });
