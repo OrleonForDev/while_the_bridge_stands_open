@@ -1,6 +1,6 @@
-import { districtIds, firstScenario, vehicleIds } from "./scenario.ts";
+import { districtIds, firstScenario } from "./scenario.ts";
 import type {
-  DistrictId, FloodgateMode, NodeId, ScenarioRoute, ScenarioRouteId, VehicleId,
+  DistrictId, FloodgateMode, NodeId, Scenario, ScenarioRouteId, VehicleId,
 } from "./scenario.ts";
 
 type DistrictCounts = Readonly<Record<DistrictId, number>>;
@@ -48,16 +48,17 @@ export type TurnResult =
 
 type PlannedMove = {
   vehicle: VehicleId;
-  route: ScenarioRoute;
+  route: Scenario["routes"][number];
   from: NodeId;
   to: NodeId;
 };
 
-export function createInitialState(): GameState {
-  const waiting = { ...firstScenario.initialWaiting };
+export function createInitialState(scenario: Scenario = firstScenario): GameState {
+  const waiting = { ...scenario.initialWaiting };
   const atStart = (id: VehicleId): VehicleState => {
-    const node = firstScenario.vehicles[id].startNode;
-    return { node, passengers: boardAt(waiting, id, node) };
+    const node = scenario.vehicles[id].startNode;
+    const passengers = scenario.vehicleIds.includes(id) ? boardAt(scenario, waiting, id, node) : null;
+    return { node, passengers };
   };
 
   return {
@@ -71,8 +72,8 @@ export function createInitialState(): GameState {
   };
 }
 
-export function getRouteForecast(mode: FloodgateMode) {
-  return firstScenario.routes.map((route) => {
+export function getRouteForecast(mode: FloodgateMode, scenario: Scenario = firstScenario) {
+  return scenario.routes.map((route) => {
     const lastOpenTurn = route.lastOpenTurn?.[mode] ?? null;
     return {
       route: route.id,
@@ -82,15 +83,15 @@ export function getRouteForecast(mode: FloodgateMode) {
   });
 }
 
-export function getEvacuationReport(state: GameState) {
+export function getEvacuationReport(state: GameState, scenario: Scenario = firstScenario) {
   function districtReport(district: DistrictId) {
     let inTransit = 0;
-    for (const id of vehicleIds) {
+    for (const id of scenario.vehicleIds) {
       const passengers = state.vehicles[id].passengers;
       if (passengers?.district === district) inTransit += passengers.count;
     }
     return {
-      initial: firstScenario.initialWaiting[district],
+      initial: scenario.initialWaiting[district],
       evacuated: state.evacuated[district],
       waiting: state.waiting[district],
       inTransit,
@@ -113,7 +114,7 @@ export function getEvacuationReport(state: GameState) {
   return { districts, total };
 }
 
-function checkOrders(state: GameState, orders: TurnOrders) {
+function checkOrders(scenario: Scenario, state: GameState, orders: TurnOrders) {
   const moves: PlannedMove[] = [];
   const issues: TurnIssue[] = [];
 
@@ -121,7 +122,7 @@ function checkOrders(state: GameState, orders: TurnOrders) {
     return { moves, issues: [{ kind: "game-finished" }] satisfies TurnIssue[] };
   }
 
-  if (state.turn === firstScenario.decisionTurn) {
+  if (state.turn === scenario.decisionTurn) {
     if (orders.floodgate !== "closed" && orders.floodgate !== "open") {
       issues.push({ kind: "floodgate-choice-required" });
     }
@@ -129,17 +130,17 @@ function checkOrders(state: GameState, orders: TurnOrders) {
     issues.push({ kind: "unexpected-floodgate-choice" });
   }
 
-  for (const vehicle of vehicleIds) {
+  for (const vehicle of scenario.vehicleIds) {
     const to = orders.moves?.[vehicle];
     if (to === undefined || to === null) continue;
 
     const from = state.vehicles[vehicle].node;
-    const route = firstScenario.routes.find(({ ends: [a, b] }) =>
+    const route = scenario.routes.find(({ ends: [a, b] }) =>
       (from === a && to === b) || (from === b && to === a)
     );
     if (!route) {
       issues.push({ kind: "not-adjacent", vehicle, destination: to });
-    } else if (route.vehicleKind !== firstScenario.vehicles[vehicle].kind) {
+    } else if (route.vehicleKind !== scenario.vehicles[vehicle].kind) {
       issues.push({ kind: "wrong-vehicle", vehicle, route: route.id });
     } else if (state.closedRoutes.includes(route.id)) {
       issues.push({ kind: "route-closed", vehicle, route: route.id });
@@ -148,7 +149,7 @@ function checkOrders(state: GameState, orders: TurnOrders) {
     }
   }
 
-  for (const { id, maxVehiclesPerTurn } of firstScenario.routes) {
+  for (const { id, maxVehiclesPerTurn } of scenario.routes) {
     if (maxVehiclesPerTurn === null) continue;
     const vehicles = moves.filter(({ route }) => route.id === id).map(({ vehicle }) => vehicle);
     if (vehicles.length > maxVehiclesPerTurn) {
@@ -158,38 +159,38 @@ function checkOrders(state: GameState, orders: TurnOrders) {
   return { moves, issues };
 }
 
-export function validateTurn(state: GameState, orders: TurnOrders = {}): readonly TurnIssue[] {
-  return checkOrders(state, orders).issues;
+export function validateTurn(state: GameState, orders: TurnOrders = {}, scenario: Scenario = firstScenario): readonly TurnIssue[] {
+  return checkOrders(scenario, state, orders).issues;
 }
 
 function isDistrict(node: NodeId): node is DistrictId {
-  return Object.hasOwn(firstScenario.initialWaiting, node);
+  return districtIds.some((district) => district === node);
 }
 
-function boardAt(waiting: Record<DistrictId, number>, vehicle: VehicleId, node: NodeId): Passengers | null {
+function boardAt(scenario: Scenario, waiting: Record<DistrictId, number>, vehicle: VehicleId, node: NodeId): Passengers | null {
   if (!isDistrict(node)) return null;
-  const count = Math.min(waiting[node], firstScenario.vehicles[vehicle].seats);
+  const count = Math.min(waiting[node], scenario.vehicles[vehicle].seats);
   if (count === 0) return null;
 
   waiting[node] -= count;
   return { district: node, count };
 }
 
-function finishOrOpenNextTurn(state: GameState, events: TurnEvent[]): GameState {
+function finishOrOpenNextTurn(scenario: Scenario, state: GameState, events: TurnEvent[]): GameState {
   function finish(snapshot: GameState, reason: EndReason): GameState {
     events.push({ kind: "game-ended", turn: snapshot.turn, reason });
     return { ...snapshot, endReason: reason };
   }
 
-  if (districtIds.every((district) => state.evacuated[district] === firstScenario.initialWaiting[district])) {
+  if (districtIds.every((district) => state.evacuated[district] === scenario.initialWaiting[district])) {
     return finish(state, "all-evacuated");
   }
-  if (state.turn >= firstScenario.maxTurns) return finish(state, "turn-limit");
+  if (state.turn >= scenario.maxTurns) return finish(state, "turn-limit");
 
   const turn = state.turn + 1;
   const closedRoutes = [...state.closedRoutes];
 
-  for (const { route, firstClosedTurn } of getRouteForecast(state.floodgate ?? "closed")) {
+  for (const { route, firstClosedTurn } of getRouteForecast(state.floodgate ?? "closed", scenario)) {
     if (firstClosedTurn !== null && turn >= firstClosedTurn && !closedRoutes.includes(route)) {
       closedRoutes.push(route);
       events.push({ kind: "route-closed", turn, route });
@@ -197,14 +198,14 @@ function finishOrOpenNextTurn(state: GameState, events: TurnEvent[]): GameState 
   }
 
   const next = { ...state, turn, closedRoutes };
-  const shelterHasAccess = firstScenario.routes.some(({ id, ends: [a, b] }) =>
-    [a, b].some((node: NodeId) => node === firstScenario.shelter) && !closedRoutes.includes(id)
+  const shelterHasAccess = scenario.routes.some(({ id, ends }) =>
+    ends.includes(scenario.shelter) && !closedRoutes.includes(id)
   );
   return shelterHasAccess ? next : finish(next, "shelter-isolated");
 }
 
-export function advanceTurn(state: GameState, orders: TurnOrders = {}): TurnResult {
-  const { moves, issues } = checkOrders(state, orders);
+export function advanceTurn(state: GameState, orders: TurnOrders = {}, scenario: Scenario = firstScenario): TurnResult {
+  const { moves, issues } = checkOrders(scenario, state, orders);
   if (issues.length > 0) return { ok: false, state, events: [], issues };
 
   const { turn } = state;
@@ -226,7 +227,7 @@ export function advanceTurn(state: GameState, orders: TurnOrders = {}): TurnResu
   // Simultaneous arrivals share the queue in vehicle priority order.
   for (const { vehicle, to } of moves) {
     if (vehicles[vehicle].passengers !== null) continue;
-    const passengers = boardAt(waiting, vehicle, to);
+    const passengers = boardAt(scenario, waiting, vehicle, to);
     if (passengers === null) continue;
 
     vehicles[vehicle] = { node: to, passengers };
@@ -235,7 +236,7 @@ export function advanceTurn(state: GameState, orders: TurnOrders = {}): TurnResu
 
   for (const { vehicle, to } of moves) {
     const passengers = vehicles[vehicle].passengers;
-    if (to !== firstScenario.shelter || passengers === null) continue;
+    if (to !== scenario.shelter || passengers === null) continue;
 
     evacuated[passengers.district] += passengers.count;
     vehicles[vehicle] = { ...vehicles[vehicle], passengers: null };
@@ -243,5 +244,5 @@ export function advanceTurn(state: GameState, orders: TurnOrders = {}): TurnResu
   }
 
   const snapshot = { ...state, floodgate, waiting, evacuated, vehicles };
-  return { ok: true, state: finishOrOpenNextTurn(snapshot, events), events };
+  return { ok: true, state: finishOrOpenNextTurn(scenario, snapshot, events), events };
 }

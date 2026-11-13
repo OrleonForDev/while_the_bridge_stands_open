@@ -31,6 +31,18 @@ type Vehicle = {
   startNode: NodeId;
 };
 
+export type Scenario = {
+  readonly map: { readonly width: number; readonly height: number };
+  readonly shelter: NodeId;
+  readonly decisionTurn: number | null;
+  readonly maxTurns: number;
+  readonly nodes: Readonly<Record<NodeId, MapNode>>;
+  readonly initialWaiting: Readonly<Record<DistrictId, number>>;
+  readonly vehicles: Readonly<Record<VehicleId, Vehicle>>;
+  readonly vehicleIds: readonly VehicleId[];
+  readonly routes: readonly Route[];
+};
+
 const maxTurns = 9;
 
 export const firstScenario = {
@@ -51,6 +63,7 @@ export const firstScenario = {
     "bus-2": { label: "А2", kind: "bus", seats: 18, startNode: "school" },
     ferry: { label: "П", kind: "ferry", seats: 18, startNode: "shelter" },
   } satisfies Record<VehicleId, Vehicle>,
+  vehicleIds,
   routes: [
     {
       id: "bridge", label: "Мост", ends: ["junction", "shelter"],
@@ -73,7 +86,7 @@ export const firstScenario = {
       vehicleKind: "bus", maxVehiclesPerTurn: null, lastOpenTurn: null,
     },
   ] satisfies readonly Route[],
-} as const;
+} as const satisfies Scenario;
 
 export type ScenarioRoute = (typeof firstScenario.routes)[number];
 export type ScenarioRouteId = ScenarioRoute["id"];
