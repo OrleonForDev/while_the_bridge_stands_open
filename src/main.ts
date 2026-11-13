@@ -63,11 +63,19 @@ let selected: VehicleId = "bus-1";
 const vehicleButtons = new Map<VehicleId, HTMLButtonElement>();
 const destinationButtons = new Map<NodeId, HTMLButtonElement>();
 const queueList = document.querySelector("#district-queues")!;
-const queueCounts = new Map<(typeof districtIds)[number], HTMLElement>();
+const queueCounts = new Map<(typeof districtIds)[number], Text>();
 for (const district of districtIds) {
   const item = document.createElement("li");
-  const count = document.createElement("strong");
-  item.append(nodes[district].label + " ", count);
+  const waiting = document.createElement("strong");
+  const icon = document.createElement("span");
+  icon.className = "asset-icon icon-people";
+  icon.setAttribute("aria-hidden", "true");
+  const description = document.createElement("span");
+  description.className = "sr-only";
+  description.textContent = "ждут ";
+  const count = document.createTextNode("");
+  waiting.append(icon, description, count);
+  item.append(nodes[district].label + " ", waiting);
   queueList.append(item);
   queueCounts.set(district, count);
 }
@@ -216,7 +224,7 @@ function render() {
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
   for (const [district, count] of queueCounts) {
-    count.textContent = "ждут " + report.districts[district].waiting;
+    count.data = String(report.districts[district].waiting);
   }
   planning.hidden = finished;
   result.hidden = !finished;
@@ -403,11 +411,10 @@ async function executeTurn() {
   const next = advanceTurn(state, turnOrders());
   if (!next.ok) return;
   const restoreFocus = document.activeElement === advance;
-  const movements = next.events.filter((event) => event.kind === "moved");
-  if (!reduceMotion.matches && movements.length > 0) {
+  if (!reduceMotion.matches && next.events.some((event) => event.kind === "moved")) {
     resolving = true;
     render();
-    await scene.animateMoves(movements, next.state);
+    await scene.animateMoves(next.events, next.state);
     resolving = false;
   }
   state = next.state;

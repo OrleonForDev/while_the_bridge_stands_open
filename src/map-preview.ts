@@ -1,14 +1,16 @@
 import Phaser from "phaser";
 import { firstScenario, districtIds, vehicleIds } from "./game/scenario.ts";
-import type { FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
+import type { DistrictId, FloodgateMode, NodeId, ScenarioRouteId, VehicleId } from "./game/scenario.ts";
 import type { GameState, TurnEvent, TurnOrders } from "./game/turn.ts";
 
-const { map, nodes, routes } = firstScenario;
+const { map, nodes, routes, vehicles } = firstScenario;
 const nodeIds = Object.keys(nodes) as NodeId[];
 const ink = 0x243b39;
 const accent = 0x0c7565;
 const blocked = 0x983825;
 const paper = 0xf3eee1;
+const emptyTransport = "#71827b";
+const occupiedTransport = "#8a491e";
 const fontFamily = '"Bridge Inter", "Segoe UI", sans-serif';
 const transportSpacing = 104;
 const movementDuration = 950;
@@ -26,7 +28,14 @@ type MapView = {
 type NodeMarker = {
   marker: Phaser.GameObjects.Arc;
   zone: Phaser.GameObjects.Zone;
-  queue: Phaser.GameObjects.Text;
+};
+type VehicleMarker = {
+  group: Phaser.GameObjects.Container;
+  fill: Phaser.GameObjects.Image | undefined;
+  occupancy: Phaser.GameObjects.Text;
+  selection: Phaser.GameObjects.Rectangle;
+  checkmark: Phaser.GameObjects.Text;
+  zone: Phaser.GameObjects.Zone;
 };
 
 function points(coords: readonly [number, number][]) {
@@ -102,14 +111,9 @@ export class MapPreview extends Phaser.Scene {
   private roads!: Phaser.GameObjects.Graphics;
   private arrows!: Phaser.GameObjects.Graphics;
   private readonly markers = new Map<NodeId, NodeMarker>();
+  private readonly queues = new Map<DistrictId, Phaser.GameObjects.Text>();
   private readonly routeText = new Map<ScenarioRouteId, Phaser.GameObjects.Text>();
-  private readonly transport = new Map<VehicleId, {
-    group: Phaser.GameObjects.Container;
-    icon: Phaser.GameObjects.Image | undefined;
-    selection: Phaser.GameObjects.Rectangle;
-    checkmark: Phaser.GameObjects.Text;
-    zone: Phaser.GameObjects.Zone;
-  }>();
+  private readonly transport = new Map<VehicleId, VehicleMarker>();
 
   constructor(
     private readonly onDestination: (id: NodeId) => void,
@@ -123,6 +127,7 @@ export class MapPreview extends Phaser.Scene {
     const icons = import.meta.env.BASE_URL + "assets/transport/";
     this.load.svg("vehicle-bus", icons + "bus.svg", { scale: 2 });
     this.load.svg("vehicle-ferry", icons + "ferry.svg", { scale: 2 });
+    this.load.svg("waiting-people", icons + "people.svg", { scale: 2 });
   }
 
   create() {
@@ -138,7 +143,13 @@ export class MapPreview extends Phaser.Scene {
       this.routeText.set(id as ScenarioRouteId, text);
     }
 
+    for (const kind of ["bus", "ferry"]) {
+      const key = "vehicle-" + kind;
+      this.colorSilhouette(key, key + "-empty", emptyTransport);
+      this.colorSilhouette(key, key + "-occupied", occupiedTransport);
+    }
     for (const id of nodeIds) this.drawNode(id);
+    for (const id of districtIds) this.drawQueue(id);
     for (const id of vehicleIds) this.drawVehicle(id);
     this.onReady();
   }
@@ -196,23 +207,29 @@ export class MapPreview extends Phaser.Scene {
       if (isAvailable) zone.setInteractive({ useHandCursor: true });
       else zone.disableInteractive();
     }
-    for (const id of districtIds) this.markers.get(id)?.queue.setText("Ждут: " + state.waiting[id]);
+    this.updateQueues(state.waiting);
 
     for (const vehicle of vehicleIds) {
-      const { group, icon, selection, checkmark, zone } = this.transport.get(vehicle)!;
+      const { group, selection, checkmark, zone } = this.transport.get(vehicle)!;
       const { x, y } = parkedPosition(state, vehicle);
       group.setPosition(x, y).setDepth(0);
       const active = vehicle === selected && !state.endReason;
-      icon?.setTint(active ? accent : ink);
+      this.updateOccupancy(vehicle, state.vehicles[vehicle].passengers?.count ?? 0);
       selection.setVisible(active);
       checkmark.setVisible(moves[vehicle] !== undefined);
       zone.input!.enabled = !resolving && !state.endReason;
     }
   }
 
-  animateMoves(moves: readonly Extract<TurnEvent, { kind: "moved" }>[], nextState: GameState) {
-    const trips = moves.map(({ vehicle, route, from, to }) => {
-      const { group, icon, checkmark } = this.transport.get(vehicle)!;
+  animateMoves(events: readonly TurnEvent[], nextState: GameState) {
+    this.updateQueues(nextState.waiting);
+    for (const event of events) {
+      if (event.kind === "boarded") this.updateOccupancy(event.vehicle, event.passengers.count);
+    }
+
+    const movements = events.filter((event) => event.kind === "moved");
+    const trips = movements.map(({ vehicle, route, from, to }) => {
+      const { group, checkmark } = this.transport.get(vehicle)!;
       const path = new Phaser.Curves.Path(group.x, group.y);
       const waypoints = routePoints(route, from, to);
       // At the embankment, enter and leave the route directly from the vehicle's stop.
@@ -221,7 +238,6 @@ export class MapPreview extends Phaser.Scene {
       const destination = parkedPosition(nextState, vehicle);
       for (const { x, y } of [...waypoints, destination]) path.lineTo(x, y);
       group.setDepth(1);
-      icon?.setTint(accent);
       checkmark.setVisible(false);
       return { group, path, point: new Phaser.Math.Vector2() };
     });
@@ -273,34 +289,85 @@ export class MapPreview extends Phaser.Scene {
       fontFamily, fontSize: "37px", fontStyle: "bold", color: "#243b39",
       backgroundColor: "#f3eee1", padding: { x: 8, y: 2 },
     }).setOrigin(0.5, 0);
-    const queue = this.add.text(x, y + 107, "", { fontFamily, fontSize: "30px", color: "#355851" }).setOrigin(0.5, 0);
     const zone = this.add.zone(x, y + 20, 182, 122)
       .setInteractive({ useHandCursor: true })
       .on("pointerup", () => this.onDestination(id));
-    this.markers.set(id, { marker, queue, zone });
+    this.markers.set(id, { marker, zone });
+  }
+
+  private drawQueue(id: DistrictId) {
+    const { x, y } = nodes[id];
+    if (this.textures.exists("waiting-people")) {
+      this.add.image(x - 4, y + 123, "waiting-people").setOrigin(1, 0.5).setScale(0.5);
+    }
+    const count = this.add.text(x + 4, y + 123, "", {
+      fontFamily, fontSize: "34px", fontStyle: "bold", color: "#243b39",
+      stroke: "#f3eee1", strokeThickness: 3,
+    }).setOrigin(0, 0.5);
+    this.queues.set(id, count);
+  }
+
+  private updateQueues(waiting: GameState["waiting"]) {
+    for (const [id, count] of this.queues) count.setText(String(waiting[id]));
+  }
+
+  private updateOccupancy(id: VehicleId, passengers: number) {
+    const { fill, occupancy } = this.transport.get(id)!;
+    const { seats } = vehicles[id];
+    occupancy.setText(passengers + "/" + seats);
+    if (fill) {
+      const height = Math.round(fill.height * passengers / seats);
+      fill.setVisible(height > 0).setCrop(0, fill.height - height, fill.width, height);
+    }
+  }
+
+  private colorSilhouette(sourceKey: string, key: string, color: string) {
+    if (!this.textures.exists(sourceKey) || this.textures.exists(key)) return;
+    const source = this.textures.get(sourceKey).getSourceImage();
+    if (!(source instanceof HTMLImageElement)) return;
+    const texture = this.textures.createCanvas(key, source.naturalWidth, source.naturalHeight);
+    if (!texture) return;
+
+    // Use the SVG's alpha channel so the same fill works in WebGL and Canvas.
+    const context = texture.getContext();
+    context.fillStyle = color;
+    context.fillRect(0, 0, texture.width, texture.height);
+    context.globalCompositeOperation = "destination-in";
+    context.drawImage(source, 0, 0);
+    context.globalCompositeOperation = "source-over";
+    texture.refresh();
   }
 
   private drawVehicle(id: VehicleId) {
-    const { label, kind } = firstScenario.vehicles[id];
+    const { label, kind } = vehicles[id];
     const key = "vehicle-" + kind;
     const iconX = kind === "bus" ? -15 : 0;
     const parts: Phaser.GameObjects.GameObject[] = [];
-    const icon = this.textures.exists(key) ? this.add.image(iconX, 0, key).setScale(0.5) : undefined;
-    if (icon) parts.push(icon);
+    const icon = this.textures.exists(key + "-empty")
+      ? this.add.image(iconX, 0, key + "-empty").setScale(0.5)
+      : undefined;
+    const fill = icon && this.textures.exists(key + "-occupied")
+      ? this.add.image(iconX, 0, key + "-occupied").setScale(0.5)
+      : undefined;
+    if (icon && fill) parts.push(icon, fill);
     if (kind === "bus" || !icon) {
       const text = this.add.text(icon ? 33 : 0, 1, label, {
         fontFamily, fontSize: "22px", fontStyle: "bold", color: "#243b39",
       }).setOrigin(0.5);
       parts.push(text);
     }
+    const occupancy = this.add.text(iconX, -34, "", {
+      fontFamily, fontSize: "28px", fontStyle: "bold", color: "#243b39",
+      stroke: "#f3eee1", strokeThickness: 4,
+    }).setOrigin(0.5);
     const selection = this.add.rectangle(icon ? iconX : 0, 25, 32, 4, accent).setVisible(false);
-    const zone = this.add.zone(0, 0, kind === "bus" ? 100 : 72, 52).setInteractive({ useHandCursor: true })
+    const zone = this.add.zone(0, -10, kind === "bus" ? 100 : 72, 72).setInteractive({ useHandCursor: true })
       .on("pointerup", () => this.onVehicle(id));
     const checkmark = this.add.text(kind === "bus" ? 40 : 32, -20, "✓", {
       fontFamily, fontSize: "22px", fontStyle: "bold", color: "#206341",
       stroke: "#f3eee1", strokeThickness: 3,
     }).setOrigin(0.5).setVisible(false);
-    const group = this.add.container(0, 0, [...parts, selection, checkmark, zone]);
-    this.transport.set(id, { group, icon, selection, checkmark, zone });
+    const group = this.add.container(0, 0, [...parts, occupancy, selection, checkmark, zone]);
+    this.transport.set(id, { group, fill, occupancy, selection, checkmark, zone });
   }
 }
