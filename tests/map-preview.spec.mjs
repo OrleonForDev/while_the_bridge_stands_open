@@ -290,10 +290,10 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(turn).toHaveText("3");
   await expect(advance).toBeDisabled();
   await expect(advance).toHaveText("Выполнить ход · выбери водосброс");
-  const decision = page.getByRole("group", { name: "Выбери режим водосброса" });
+  const decision = page.getByRole("group", { name: "Риск затопления" });
   await expect(decision).toBeInViewport();
-  await expect(decision).toContainText("Мост по 4-й ход · Паром по 6-й ход");
-  await expect(decision).toContainText("Мост по 9-й ход · Паром по 4-й ход");
+  await expect(keepClosed).toHaveAccessibleDescription(/Мост разрушится после 4-го хода\.\s*Паром перестанет ходить после 6-го хода\./);
+  await expect(open).toHaveAccessibleDescription(/Мост останется открыт до конца 9-го хода\.\s*Паром перестанет ходить после 4-го хода\./);
   await expect(open).not.toBeChecked();
   await expect(page.locator("#order-status")).toContainText("выбери режим водосброса");
   await order("Автобус А1", "Убежище");

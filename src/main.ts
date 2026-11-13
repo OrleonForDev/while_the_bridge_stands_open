@@ -282,8 +282,12 @@ for (const mode of forecastModes) {
   );
   row.insertCell().textContent = String(bridgeTurn);
   row.insertCell().textContent = String(ferryTurn);
-  document.querySelector("#floodgate-" + mode + "-timing")!.textContent =
-    "Мост по " + bridgeTurn + "-й ход · Паром по " + ferryTurn + "-й ход";
+  const bridgeTiming = bridgeTurn === firstScenario.maxTurns
+    ? `Мост останется открыт до конца ${bridgeTurn}-го хода.`
+    : `Мост разрушится после ${bridgeTurn}-го хода.`;
+  document.querySelector("#floodgate-" + mode + "-timing")!.replaceChildren(
+    bridgeTiming, document.createElement("br"), `Паром перестанет ходить после ${ferryTurn}-го хода.`,
+  );
   forecastRowsByMode.set(mode, { row, status });
 }
 
