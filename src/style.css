@@ -128,7 +128,7 @@ h2 { font-size: 1.1rem; }
 
 .map-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
 .map-legend i { width: 1.25rem; height: 0.25rem; border-radius: 0.25rem; }
-.available-key { background: #11675e; box-shadow: 0 0 0 2px #bce5d3; }
+.available-key { background: #3b7d6d; box-shadow: 0 0 0 2px #cbe3d5; }
 .planned-key { position: relative; background: #234aa0; }
 .planned-key::after {
   content: "";

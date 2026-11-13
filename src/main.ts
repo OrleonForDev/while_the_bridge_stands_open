@@ -254,8 +254,7 @@ function render() {
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
   orderCount.textContent = (vehicleIds.length - unassigned.length) + " из " + vehicleIds.length + " готовы";
-  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути"
-    : "Нажми на транспорт, затем на подсвеченный пункт";
+  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути" : "Выбран транспорт · " + vehicleName(selected);
   for (const [district, count] of queueCounts) {
     count.data = String(report.districts[district].waiting);
   }
