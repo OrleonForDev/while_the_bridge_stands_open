@@ -227,7 +227,7 @@ export class MapPreview extends Phaser.Scene {
         duration: 1050,
         ease: "Sine.easeInOut",
         yoyo: true,
-        repeat: 2,
+        repeat: -1,
       });
     }
     this.updateQueues(state.waiting);
