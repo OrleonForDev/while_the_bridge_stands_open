@@ -536,6 +536,7 @@ async function executeTurn() {
   const turn = state.turn;
   const next = advanceTurn(state, turnOrders());
   if (!next.ok) return;
+  selected = null;
   const restoreFocus = document.activeElement === advance;
   if (!reduceMotion.matches && next.events.some((event) => event.kind === "moved")) {
     resolving = true;

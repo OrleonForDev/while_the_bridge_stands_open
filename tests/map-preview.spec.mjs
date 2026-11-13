@@ -212,6 +212,8 @@ test("План А от первого приказа до итога и повт
   await expect(confirmation).toBeHidden();
   await expect(turn).toHaveText("6");
   await expect(score).toHaveText("72 / 108");
+  await expect(vehicle("Паром")).toHaveAttribute("aria-pressed", "false");
+  await vehicle("Паром").click();
   await clickMarker(canvas, markers.shelter);
   await expect(route("Паром")).toContainText("→ Убежище");
   await advance.click();
@@ -351,6 +353,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(confirmation).toContainText("Без приказа: Автобус А2.");
   await confirmation.getByRole("button", { name: "Всё равно выполнить" }).click();
   await expect(turn).toHaveText("6");
+  await expect(vehicle("Автобус А1")).toHaveAttribute("aria-pressed", "false");
   await order("Автобус А1", "Развязка");
   await order("Автобус А2", "Развязка");
   await advance.click();
@@ -421,6 +424,7 @@ test("Ход без всех приказов требует подтвержд�
   await advance.click();
   await expect(turn).toHaveText("2");
   await expect(confirmation).toBeHidden();
+  await expect(vehicle("Паром")).toHaveAttribute("aria-pressed", "false");
   await expect(route("Автобус А1")).toContainText("Без приказа");
   await expect(page.locator("#vehicles .planned")).toHaveCount(0);
 });
