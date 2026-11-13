@@ -51,13 +51,21 @@
             <p class="map-turn" aria-live="polite" aria-atomic="true">Ход <strong id="turn-number">1</strong></p>
           </header>
           <div class="map-view">
-            <div id="map" aria-hidden="true"></div>
-            <p id="shelter-count" class="shelter-count" aria-live="polite" aria-atomic="true" hidden>
-              <span class="sr-only">В убежище</span>
-              <span class="asset-icon icon-people" aria-hidden="true"></span>
-              <strong id="score"></strong>
-            </p>
-            <div id="destinations" class="map-keyboard" role="group" aria-label="Назначить маршрут с клавиатуры"></div>
+            <div class="map-surface">
+              <div id="map" aria-hidden="true"></div>
+              <div id="route-labels" role="group" aria-label="Участки на карте" hidden></div>
+              <p id="shelter-count" class="shelter-count" aria-live="polite" aria-atomic="true" hidden>
+                <span class="sr-only">В убежище</span>
+                <span class="asset-icon icon-people" aria-hidden="true"></span>
+                <strong id="score"></strong>
+              </p>
+              <div id="destinations" class="map-keyboard" role="group" aria-label="Назначить маршрут с клавиатуры"></div>
+            </div>
+            <div id="route-info" class="route-info" role="region" aria-labelledby="route-info-title" hidden>
+              <strong id="route-info-title"></strong>
+              <p id="route-info-description"></p>
+              <p id="route-info-forecast" class="route-info-forecast"></p>
+            </div>
           </div>
           <div class="map-legend">
             <span><i class="available-key" aria-hidden="true"></i>Доступный путь</span>

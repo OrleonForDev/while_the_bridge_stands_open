@@ -105,6 +105,18 @@ test("План А от первого приказа до итога и повт
   }
   await expect(destination("Больница")).toBeHidden();
   await expect(wait).toBeDisabled();
+  const lowerRoad = page.getByRole("button", { name: "Нижняя дорога", exact: true });
+  const roadInfo = page.getByRole("region", { name: "Нижняя дорога", exact: true });
+  await lowerRoad.hover();
+  await expect(lowerRoad).toHaveCSS("background-color", "rgb(226, 240, 232)");
+  await lowerRoad.click();
+  await expect(roadInfo).toContainText("Закроется через 3 хода.");
+  await expect(roadInfo).toContainText("Последний проезд: ход 3.");
+  await roadInfo.getByText("Закроется через 3 хода.").click();
+  await expect(roadInfo).toBeVisible();
+  await clickMarker(canvas, [110, 110]);
+  await expect(roadInfo).toBeHidden();
+  await expect(lowerRoad).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
   await expect(page.locator("#turn-feedback")).toBeEmpty();
   const help = page.getByRole("button", { name: "Как играть", exact: true });
@@ -161,6 +173,10 @@ test("План А от первого приказа до итога и повт
   await expect(page.locator("#turn-feedback")).toContainText("Доставлено в убежище: 36 чел.");
   await expect(page.locator("#turn-guide")).toContainText("раньше закрывает паромную переправу");
 
+  await lowerRoad.press("Enter");
+  await expect(roadInfo).toContainText("Закроется после этого хода.");
+  await page.keyboard.press("Escape");
+  await expect(roadInfo).toBeHidden();
   await vehicle("Автобус А1").focus();
   await page.keyboard.press("Enter");
   await destination("Убежище").focus();
@@ -176,8 +192,12 @@ test("План А от первого приказа до итога и повт
   await expect(keepClosed).toBeHidden();
   await expect(score).toHaveText("54 / 108");
   await expect(routeStatus(page, "Нижняя дорога")).toHaveText("Закрыто");
+  await lowerRoad.click();
+  await expect(roadInfo).toContainText("Участок уже закрыт.");
+  await expect(roadInfo).toContainText("Закрыт с 4-го хода.");
 
   await vehicle("Паром").click();
+  await expect(roadInfo).toBeHidden();
   await clickMarker(canvas, markers.shelter);
   await expect(route("Паром")).toContainText("→ Убежище");
   await confirmIncompleteTurn(page);
@@ -289,7 +309,16 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(routeStatus(page, "Мост")).toHaveText("По 9-й ход");
   await expect(routeStatus(page, "Переправа")).toHaveText("По 4-й ход");
   await expect(routeStatus(page, "Нижняя дорога")).toHaveText("Последний ход");
+  const bridgeLabel = page.getByRole("button", { name: "Мост", exact: true });
+  const bridgeInfo = page.getByRole("region", { name: "Мост", exact: true });
+  await bridgeLabel.click();
+  await expect(bridgeInfo).toContainText("Открыт до конца партии.");
+  await expect(bridgeInfo).toContainText("Последний проезд: ход 9 при открытом водосбросе.");
   await keepClosed.check();
+  await expect(bridgeInfo).toBeHidden();
+  await bridgeLabel.click();
+  await expect(bridgeInfo).toContainText("Закроется через 2 хода.");
+  await expect(bridgeInfo).toContainText("Последний проезд: ход 4 при закрытом водосбросе.");
   await expect(routeStatus(page, "Мост")).toHaveText("По 4-й ход");
   await expect(routeStatus(page, "Переправа")).toHaveText("По 6-й ход");
   await open.check();

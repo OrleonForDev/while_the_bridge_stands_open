@@ -90,6 +90,7 @@ h2 { font-size: 1.1rem; }
 
 .map-turn strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
 .map-view { position: relative; container-type: inline-size; }
+.map-surface { position: relative; }
 
 #map {
   width: 100%;
@@ -99,6 +100,70 @@ h2 { font-size: 1.1rem; }
 }
 
 #map canvas { display: block; }
+
+.map-view .route-label {
+  position: absolute;
+  left: var(--map-x);
+  top: var(--map-y);
+  transform: translate(-50%, -50%);
+  min-height: max(24px, 2.4cqw);
+  padding: 0 0.75cqw;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: #f9f8f1;
+  color: #4a625c;
+  font-size: clamp(0.625rem, 1.55cqw, 1rem);
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.map-view .route-label.route-warning { color: var(--error); }
+.map-view .route-label:hover,
+.map-view .route-label[aria-expanded="true"] {
+  border-color: #9ebcae;
+  background: #e2f0e8;
+}
+
+.route-info {
+  position: absolute;
+  z-index: 1;
+  --half-width: min(7.5rem, 47cqw);
+  width: calc(var(--half-width) * 2);
+  left: clamp(calc(var(--half-width) + 0.25rem), var(--map-x), calc(100% - var(--half-width) - 0.25rem));
+  top: calc(var(--map-y) + max(17px, 1.5cqw));
+  transform: translateX(-50%);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+  box-shadow: 0 3px 12px #243b3926;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+.route-info[data-route="ferry-crossing"] {
+  top: auto;
+  bottom: calc(100% - var(--map-y) + max(17px, 1.5cqw));
+}
+
+.route-info[data-route="lower-road"] {
+  left: min(var(--map-x), calc(100% - var(--half-width) * 2 - 0.25rem));
+  transform: none;
+}
+
+.route-info p { margin: 0.22rem 0 0; }
+.route-info-forecast { color: var(--muted); }
+
+@container (max-width: 480px) {
+  .route-info[data-route] {
+    position: relative;
+    inset: auto;
+    transform: none;
+    width: auto;
+    margin: 0.4rem 0.6rem;
+  }
+}
 
 .shelter-count {
   position: absolute;

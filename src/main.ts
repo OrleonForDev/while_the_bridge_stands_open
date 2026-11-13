@@ -14,6 +14,16 @@ const { map, nodes, routes, vehicles } = firstScenario;
 const nodeIds = Object.keys(nodes) as NodeId[];
 
 const mapElement = document.querySelector<HTMLDivElement>("#map")!;
+const routeLabels = document.querySelector<HTMLElement>("#route-labels")!;
+const routeInfo = document.querySelector<HTMLElement>("#route-info")!;
+const routeInfoTitle = document.querySelector<HTMLElement>("#route-info-title")!;
+const routeInfoDescription = document.querySelector<HTMLElement>("#route-info-description")!;
+const routeInfoForecast = document.querySelector<HTMLElement>("#route-info-forecast")!;
+const routeLabelPositions = {
+  bridge: [679, 326],
+  "ferry-crossing": [640, 554],
+  "lower-road": [1058, 568],
+} as const;
 const planning = document.querySelector<HTMLElement>("#planning")!;
 const result = document.querySelector<HTMLElement>("#result")!;
 const resultTitle = document.querySelector<HTMLHeadingElement>("#result-title")!;
@@ -69,6 +79,8 @@ const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let draftFloodgate: FloodgateMode | undefined;
 let moves: Partial<Record<VehicleId, NodeId | null>> = {};
 let selected: VehicleId | null = null;
+let inspectedRoute: ScenarioRouteId | null = null;
+const routeLabelButtons = new Map<ScenarioRouteId, { button: HTMLButtonElement; badge: HTMLSpanElement }>();
 const vehicleButtons = new Map<VehicleId, HTMLButtonElement>();
 const destinationButtons = new Map<NodeId, HTMLButtonElement>();
 const plannedRoutes = new Map<VehicleId, HTMLLIElement>();
@@ -109,6 +121,83 @@ function vehicleName(id: VehicleId) {
 
 function routeName(id: ScenarioRouteId) {
   return routes.find((route) => route.id === id)!.label;
+}
+
+function placeOnMap(element: HTMLElement, [x, y]: readonly [number, number]) {
+  element.style.setProperty("--map-x", x / map.width * 100 + "%");
+  element.style.setProperty("--map-y", y / map.height * 100 + "%");
+}
+
+for (const id of Object.keys(routeLabelPositions) as (keyof typeof routeLabelPositions)[]) {
+  const button = makeButton(routeLabels, routeName(id), () => {
+    selectVehicle(null);
+    if (inspectedRoute === id) {
+      closeRouteInfo();
+      return;
+    }
+    closeRouteInfo();
+    inspectedRoute = id;
+    button.setAttribute("aria-expanded", "true");
+    button.setAttribute("aria-describedby", "route-info-description route-info-forecast");
+    placeOnMap(routeInfo, routeLabelPositions[id]);
+    routeInfo.dataset.route = id;
+    renderRouteInfo(state.floodgate ?? draftFloodgate ?? "closed");
+    routeInfo.hidden = false;
+  });
+  const badge = document.createElement("span");
+  badge.setAttribute("aria-hidden", "true");
+  button.append(badge);
+  button.className = "route-label";
+  button.setAttribute("aria-controls", routeInfo.id);
+  button.setAttribute("aria-expanded", "false");
+  placeOnMap(button, routeLabelPositions[id]);
+  routeLabelButtons.set(id, { button, badge });
+}
+
+function closeRouteInfo() {
+  if (inspectedRoute === null) return;
+  const { button } = routeLabelButtons.get(inspectedRoute)!;
+  button.setAttribute("aria-expanded", "false");
+  button.removeAttribute("aria-describedby");
+  routeInfo.hidden = true;
+  inspectedRoute = null;
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof Node && !routeLabels.contains(target) && !routeInfo.contains(target)) closeRouteInfo();
+}, { capture: true });
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || inspectedRoute === null) return;
+  const button = routeLabelButtons.get(inspectedRoute)!.button;
+  closeRouteInfo();
+  button.focus({ preventScroll: true });
+});
+
+function renderRouteInfo(mode: FloodgateMode) {
+  if (inspectedRoute === null) return;
+  const { lastOpenTurn, firstClosedTurn } = forecasts[mode].find(({ route }) => route === inspectedRoute)!;
+  if (lastOpenTurn === null || firstClosedTurn === null) return;
+
+  routeInfoTitle.textContent = routeName(inspectedRoute);
+  if (state.closedRoutes.includes(inspectedRoute)) {
+    routeInfoDescription.textContent = "Участок уже закрыт.";
+    routeInfoForecast.textContent = "Закрыт с " + firstClosedTurn + "-го хода.";
+    return;
+  }
+
+  const remaining = firstClosedTurn - state.turn;
+  routeInfoDescription.textContent = lastOpenTurn >= firstScenario.maxTurns
+    ? "Открыт до конца партии."
+    : remaining === 1 ? "Закроется после этого хода."
+    : "Закроется через " + remaining + (remaining < 5 ? " хода." : " ходов.");
+  const dependsOnFloodgate = forecasts[mode === "open" ? "closed" : "open"]
+    .find(({ route }) => route === inspectedRoute)!.lastOpenTurn !== lastOpenTurn;
+  const condition = state.floodgate === null && dependsOnFloodgate
+    ? " при " + (mode === "open" ? "открытом" : "закрытом") + " водосбросе"
+    : "";
+  routeInfoForecast.textContent = "Последний проезд: ход " + lastOpenTurn + condition + ".";
 }
 
 function availableDestinations(vehicle: VehicleId): NodeId[] {
@@ -349,7 +438,14 @@ function render() {
     entry.status.textContent = closed ? "Закрыто" : lastChance ? "Последний ход" : "По " + lastOpenTurn + "-й ход";
     entry.item.classList.toggle("closed", closed);
     entry.item.classList.toggle("last-chance", lastChance);
+    const label = routeLabelButtons.get(route);
+    if (label) {
+      const conflict = conflicts.some((issue) => issue.route === route);
+      label.button.classList.toggle("route-warning", closed || conflict);
+      label.badge.textContent = closed ? " ×" : conflict ? " !" : "";
+    }
   }
+  renderRouteInfo(forecastMode);
 
   scene.renderState({
     state, moves, selected, available, resolving,
@@ -490,6 +586,7 @@ async function executeTurn() {
 }
 
 restart.addEventListener("click", () => {
+  closeRouteInfo();
   state = createInitialState();
   draftFloodgate = undefined;
   moves = {};
@@ -505,6 +602,7 @@ const scene = new MapPreview(assign, selectVehicle, () => {
   loading.hidden = true;
   forecast.hidden = false;
   render();
+  routeLabels.hidden = false;
   shelterCount.hidden = false;
 });
 

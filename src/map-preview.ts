@@ -48,12 +48,6 @@ function points(coords: readonly [number, number][]) {
 const westBank = points([[550, 0], [530, 108], [552, 212], [586, 330], [565, 440], [519, 551], [518, 679], [558, map.height]]);
 const eastBank = points([[810, 0], [776, 118], [801, 230], [836, 349], [816, 455], [772, 576], [784, 704], [828, map.height]]);
 
-const routeLabels = {
-  bridge: { x: 679, y: 326 },
-  "ferry-crossing": { x: 640, y: 554 },
-  "lower-road": { x: 1138, y: 522 },
-} as const;
-
 const ferryBends = points([[400, 508], [543, 591], [677, 619], [770, 644]]);
 
 function routePoints(id: ScenarioRouteId, from: NodeId, to: NodeId): Point[] {
@@ -118,7 +112,6 @@ export class MapPreview extends Phaser.Scene {
   private arrows!: Phaser.GameObjects.Graphics;
   private readonly markers = new Map<NodeId, NodeMarker>();
   private readonly queues = new Map<DistrictId, Phaser.GameObjects.Text>();
-  private readonly routeText = new Map<ScenarioRouteId, Phaser.GameObjects.Text>();
   private readonly transport = new Map<VehicleId, VehicleMarker>();
   private readonly reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -144,14 +137,6 @@ export class MapPreview extends Phaser.Scene {
     this.roads = this.add.graphics();
     this.availability = this.add.graphics();
     this.arrows = this.add.graphics();
-
-    for (const [id, position] of Object.entries(routeLabels)) {
-      const text = this.add.text(position.x, position.y, "", {
-        fontFamily, fontSize: "27px", fontStyle: "bold",
-        color: "#4a625c", backgroundColor: "#f9f8f1", padding: { x: 13, y: 6 },
-      }).setOrigin(0.5);
-      this.routeText.set(id as ScenarioRouteId, text);
-    }
 
     for (const kind of ["bus", "ferry"]) {
       const key = "vehicle-" + kind;
@@ -206,12 +191,6 @@ export class MapPreview extends Phaser.Scene {
         this.roads.lineStyle(5, blocked);
         this.roads.lineBetween(x - 11, y - 11, x + 11, y + 11);
         this.roads.lineBetween(x - 11, y + 11, x + 11, y - 11);
-      }
-      const label = this.routeText.get(route.id);
-      if (label) {
-        const detail = closed ? " ×" : conflict ? " !" : "";
-        label.setText(route.label + detail);
-        label.setColor(closed || conflict ? "#9a422e" : "#4a625c");
       }
     }
 
