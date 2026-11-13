@@ -4,26 +4,59 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:," />
-    <meta name="description" content="Пробная карта проекта «Пока открыт мост»." />
+    <meta name="description" content="Пошаговая эвакуация города во время наводнения." />
     <title>Пока открыт мост</title>
   </head>
   <body>
     <main class="board">
       <header class="intro">
-        <p class="eyebrow">Пробная карта</p>
-        <h1>Пока открыт мост</h1>
-        <p class="instruction">Выберите убежище или развязку на карте.</p>
+        <div>
+          <h1>Пока открыт мост</h1>
+          <p class="instruction">Вывези жителей в убежище до закрытия переправ.</p>
+        </div>
+        <div class="counters" aria-live="polite">
+          <p><span>Ход</span> <strong id="turn-number">1</strong></p>
+          <p><span>В убежище</span> <strong id="score"></strong></p>
+        </div>
       </header>
 
-      <section class="map-panel" aria-label="Выбор узла карты">
-        <div id="map" aria-hidden="true"></div>
-        <div class="map-controls">
-          <div class="node-options" role="group" aria-label="Узлы карты">
-            <button type="button" data-node="shelter" aria-pressed="false" disabled>Убежище</button>
-            <button type="button" data-node="junction" aria-pressed="false" disabled>Развязка</button>
+      <div class="layout">
+        <section class="map-panel" aria-label="Карта эвакуации">
+          <div id="map" aria-hidden="true"></div>
+          <div class="map-footer">
+            <span>Водосброс закрыт</span>
+            <span>Мост пропускает один автобус за ход</span>
           </div>
-          <p id="selection-status" role="status">Карта загружается…</p>
+          <ul id="routes" class="routes" aria-label="Состояние маршрутов"></ul>
+        </section>
+
+        <div class="panel">
+          <div id="planning" hidden>
+            <h2 id="orders-title">Приказы</h2>
+            <div id="vehicles" class="vehicles" role="group" aria-label="Транспорт"></div>
+            <div id="destinations" class="destinations" role="group" aria-label="Назначить маршрут"></div>
+            <p id="order-status" class="hint" role="status"></p>
+            <button type="button" id="advance" class="primary">Выполнить ход</button>
+          </div>
+          <section id="result" aria-labelledby="result-title" hidden>
+            <h2 id="result-title" tabindex="-1">Итоги эвакуации</h2>
+            <p id="result-score" class="result-score"></p>
+            <p id="result-reason" class="hint"></p>
+            <table>
+              <caption class="sr-only">Итоги по районам</caption>
+              <thead><tr><th scope="col">Район</th><th scope="col">Вывезено</th><th scope="col">Ждут</th><th scope="col">В пути</th></tr></thead>
+              <tbody id="district-results"></tbody>
+            </table>
+            <button type="button" id="restart" class="primary">Повторить</button>
+          </section>
+          <p id="loading" role="status">Карта загружается…</p>
         </div>
+      </div>
+
+      <section class="journal" aria-labelledby="journal-title">
+        <h2 id="journal-title">Журнал эвакуации</h2>
+        <p id="journal-empty" class="hint">Здесь появятся события первого хода.</p>
+        <ol id="journal"></ol>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
