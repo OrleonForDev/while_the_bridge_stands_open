@@ -50,6 +50,13 @@ async function clickMarker(canvas, [x, y]) {
   await canvas.click({ position: { x: bounds.width * x / 1740, y: bounds.height * y / 840 } });
 }
 
+async function expectNoHorizontalScroll(page) {
+  expect(await page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth <= root.clientWidth;
+  })).toBe(true);
+}
+
 test("План А от первого приказа до итога и повтора", async ({ page, baseURL }) => {
   const problems = watchPage(page, baseURL);
   const requests = [];
@@ -62,6 +69,14 @@ test("План А от первого приказа до итога и повт
   const turn = page.locator("#turn-number");
   const { advance, vehicle, destination, order } = controls(page);
   await expect(canvas).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  const queues = page.getByRole("list", { name: "Ожидают эвакуации по районам" });
+  if (page.viewportSize().width <= 600) {
+    await expect(queues).toHaveCSS("clip-path", "none");
+    await expect(queues.getByRole("listitem")).toHaveText([
+      "Больница ждут 36", "Школа ждут 18", "Набережная ждут 54",
+    ]);
+  }
   await expect(page.getByRole("button", { name: "Звуки игры" })).toHaveAttribute("aria-pressed", "false");
   await expect.poll(() => page.evaluate(() => document.fonts.check('700 38px "Bridge Inter"', "Убежище"))).toBe(true);
   await expect(advance).toBeEnabled();
@@ -93,15 +108,20 @@ test("План А от первого приказа до итога и повт
   await expect(turn).toHaveText("2");
   await expect(score).toHaveText("0 / 108");
   await expect(vehicle("Автобус А2")).toContainText("18/18 мест занято");
+  await expect(queues.getByRole("listitem").nth(1)).toHaveText("Школа ждут 0");
   await expect(page.locator("#turn-feedback")).toContainText("Ход 1 выполнен. Посадка: 18 чел. Доставлено в убежище: 0 чел.");
   await expect(page.locator("#turn-guide")).toContainText("Через мост за ход проезжает один автобус.");
 
   await vehicle("Автобус А1").click();
-  const wide = await canvas.boundingBox();
-  await page.setViewportSize({ width: 700, height: 820 });
-  await expect.poll(async () => (await canvas.boundingBox())?.width ?? 0).toBeLessThan(wide.width);
+  const initialViewport = page.viewportSize();
+  const initialCanvas = await canvas.boundingBox();
+  await page.setViewportSize({ width: initialViewport.width <= 600 ? 540 : 700, height: 820 });
+  await expect.poll(async () => (await canvas.boundingBox())?.width).not.toBe(initialCanvas.width);
   await clickMarker(canvas, markers.junction);
   await expect(vehicle("Автобус А1")).toContainText("→ Развязка");
+  await page.setViewportSize(initialViewport);
+  await expect.poll(async () => (await canvas.boundingBox())?.width).toBeCloseTo(initialCanvas.width, 0);
+  await expectNoHorizontalScroll(page);
   await order("Автобус А2", "Убежище");
   await order("Паром", "Убежище");
   await advance.click();
@@ -147,6 +167,7 @@ test("План А от первого приказа до итога и повт
 
   const results = page.getByRole("region", { name: "Итоги эвакуации" });
   await expect(results).toBeVisible();
+  await expectNoHorizontalScroll(page);
   await expect(results.locator(".icon-rotate")).toHaveCSS("mask-image", /assets\/tabler\/rotate\.svg/);
   await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
   await expect(results.getByText("Мост и паромная переправа закрыты.")).toBeVisible();
@@ -185,9 +206,12 @@ test("План А от первого приказа до итога и повт
   expect(problems).toEqual([]);
 });
 
-test("План Б: прогноз можно менять до подтверждения, затем действует открытый водосброс", async ({ page }) => {
+test("План Б: прогноз можно менять до подтверждения, затем действует открытый водосброс", async ({ page, baseURL }) => {
+  const problems = watchPage(page, baseURL);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("./");
+  const response = await page.goto("./");
+  expect(response?.ok()).toBe(true);
+  await expectNoHorizontalScroll(page);
   const turn = page.locator("#turn-number");
   const score = page.locator("#score");
   const { advance, vehicle, destination, order } = controls(page);
@@ -195,7 +219,9 @@ test("План Б: прогноз можно менять до подтверж�
   const open = page.getByRole("radio", { name: "Открыть водосброс" });
   const forecasts = page.getByRole("table", { name: "Последний доступный ход" });
 
-  await order("Автобус А1", "Больница");
+  await vehicle("Автобус А1").click();
+  await clickMarker(page.locator("#map canvas"), markers.hospital);
+  await expect(vehicle("Автобус А1")).toContainText("→ Больница");
   await order("Автобус А2", "Развязка");
   await order("Паром", "Набережная");
   await advance.click();
@@ -262,6 +288,7 @@ test("План Б: прогноз можно менять до подтверж�
 
   const results = page.getByRole("region", { name: "Итоги эвакуации" });
   await expect(turn).toHaveText("8");
+  await expectNoHorizontalScroll(page);
   await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
   await expect(page.getByText("Мост · закрытие перед ходом 8", { exact: true })).toBeVisible();
   await expect(page.locator("#turn-feedback")).toContainText("Ход 7 выполнен. Посадка: 0 чел. Доставлено в убежище: 18 чел.");
@@ -278,6 +305,27 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(turn).toHaveText("3");
   await expect(open).not.toBeChecked();
   await expect(keepClosed).not.toBeChecked();
+  await expect(advance).toBeDisabled();
+  expect(problems).toEqual([]);
+});
+
+test("Удержание Enter выполняет только один ход", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("./");
+  const turn = page.locator("#turn-number");
+  const { advance } = controls(page);
+  await expect(advance).toBeEnabled();
+  await advance.focus();
+  await page.keyboard.down("Enter");
+  await expect(turn).toHaveText("2");
+  await expect(advance).toBeFocused();
+  await expect(advance).toHaveCSS("outline-style", "solid");
+  await page.keyboard.down("Enter");
+  await page.keyboard.down("Enter");
+  await page.keyboard.up("Enter");
+  await expect(turn).toHaveText("2");
+  await page.keyboard.press("Enter");
+  await expect(turn).toHaveText("3");
   await expect(advance).toBeDisabled();
 });
 
