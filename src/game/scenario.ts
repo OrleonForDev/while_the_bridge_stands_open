@@ -32,11 +32,13 @@ type Vehicle = {
   startNode: NodeId;
 };
 
+const maxTurns = 9;
+
 export const firstScenario = {
   map: { width: 1740, height: 840 },
   shelter: "shelter",
   decisionTurn: 3,
-  maxTurns: 8,
+  maxTurns,
   nodes: {
     shelter: { label: "Убежище", symbol: "У", x: 286, y: 378 },
     junction: { label: "Развязка", symbol: "Р", x: 1012, y: 378 },
@@ -53,7 +55,7 @@ export const firstScenario = {
   routes: [
     {
       id: "bridge", label: "Мост", ends: ["junction", "shelter"],
-      vehicleKind: "bus", maxVehiclesPerTurn: 1, lastOpenTurn: { closed: 4, open: 7 },
+      vehicleKind: "bus", maxVehiclesPerTurn: 1, lastOpenTurn: { closed: 4, open: maxTurns },
     },
     {
       id: "ferry-crossing", label: "Переправа", ends: ["embankment", "shelter"],

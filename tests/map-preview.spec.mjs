@@ -101,7 +101,7 @@ test("План А от первого приказа до итога и повт
   await page.keyboard.press("Enter");
   await expect(score).toHaveText("0 / 108");
   await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Закрыт/ }).getByRole("cell")).toHaveText(["4", "6"]);
-  await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Открыт/ }).getByRole("cell")).toHaveText(["7", "4"]);
+  await expect(page.getByRole("table", { name: "Последний доступный ход" }).getByRole("row", { name: /Открыт/ }).getByRole("cell")).toHaveText(["9", "4"]);
   await expect(page.getByRole("radio", { name: "Оставить закрытым" })).toBeHidden();
 
   await vehicle("Паром").click();
@@ -229,8 +229,8 @@ test("План Б: прогноз можно менять до подтверж�
   const forecasts = page.getByRole("table", { name: "Последний доступный ход" });
 
   await vehicle("Автобус А1").click();
-  await clickMarker(page.locator("#map canvas"), markers.hospital);
-  await expect(vehicle("Автобус А1")).toContainText("→ Больница");
+  await clickMarker(page.locator("#map canvas"), markers.embankment);
+  await expect(vehicle("Автобус А1")).toContainText("→ Набережная");
   await order("Автобус А2", "Развязка");
   await order("Паром", "Набережная");
   await advance.click();
@@ -244,7 +244,7 @@ test("План Б: прогноз можно менять до подтверж�
   const decision = page.getByRole("group", { name: "Выбери режим водосброса" });
   await expect(decision).toBeInViewport();
   await expect(decision).toContainText("Мост по 4-й ход · Паром по 6-й ход");
-  await expect(decision).toContainText("Мост по 7-й ход · Паром по 4-й ход");
+  await expect(decision).toContainText("Мост по 9-й ход · Паром по 4-й ход");
   await expect(open).not.toBeChecked();
   await expect(page.locator("#order-status")).toContainText("выбери режим водосброса");
   await order("Автобус А1", "Убежище");
@@ -257,7 +257,7 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(open).toBeChecked();
   await expect(advance).toBeEnabled();
   await expect(advance).toHaveText("Выполнить ход");
-  await expect(page.getByText("Мост · последний ход 7", { exact: true })).toBeVisible();
+  await expect(page.getByText("Мост · последний ход 9", { exact: true })).toBeVisible();
   await expect(page.getByText("Переправа · последний ход 4", { exact: true })).toBeVisible();
   await expect(page.getByText("Нижняя дорога · последний ход 3", { exact: true })).toBeVisible();
   await keepClosed.check();
@@ -293,21 +293,31 @@ test("План Б: прогноз можно менять до подтверж�
   await confirmIncompleteTurn(page);
   await expect(turn).toHaveText("6");
   await order("Автобус А1", "Развязка");
+  await order("Автобус А2", "Развязка");
   await confirmIncompleteTurn(page);
   await expect(turn).toHaveText("7");
   await expect(score).toHaveText("72 / 108");
   await expect(vehicle("Автобус А1")).toContainText("18/18 мест занято");
   await order("Автобус А1", "Убежище");
+  await order("Автобус А2", "Больница");
+  await confirmIncompleteTurn(page);
+  await expect(turn).toHaveText("8");
+  await expect(score).toHaveText("90 / 108");
+  await order("Автобус А2", "Развязка");
+  await confirmIncompleteTurn(page);
+  await expect(turn).toHaveText("9");
+  await expect(vehicle("Автобус А2")).toContainText("18/18 мест занято");
+  await order("Автобус А2", "Убежище");
   await expect(page.locator("#turn-guide")).toHaveText("Последний ход для проезда: мост.");
   await confirmIncompleteTurn(page);
 
   const results = page.getByRole("region", { name: "Итоги эвакуации" });
-  await expect(turn).toHaveText("8");
+  await expect(turn).toHaveText("9");
   await expectNoHorizontalScroll(page);
-  await expect(results.getByText("Вывезено 90 из 108")).toBeVisible();
-  await expect(page.getByText("Мост · закрытие перед ходом 8", { exact: true })).toBeVisible();
-  await expect(page.locator("#turn-feedback")).toContainText("Ход 7 выполнен. Посадка: 0 чел. Доставлено в убежище: 18 чел.");
-  for (const [district, values] of [["Больница", ["36", "0", "0"]], ["Школа", ["18", "0", "0"]], ["Набережная", ["36", "18", "0"]]]) {
+  await expect(results.getByText("Вывезено 108 из 108")).toBeVisible();
+  await expect(results.getByText("Все жители в убежище.")).toBeVisible();
+  await expect(page.locator("#turn-feedback")).toContainText("Ход 9 выполнен. Посадка: 0 чел. Доставлено в убежище: 18 чел.");
+  for (const [district, values] of [["Больница", ["36", "0", "0"]], ["Школа", ["18", "0", "0"]], ["Набережная", ["54", "0", "0"]]]) {
     await expect(results.getByRole("row", { name: new RegExp(district) }).getByRole("cell")).toHaveText(values);
   }
   await results.getByRole("button", { name: "Повторить" }).click();
