@@ -83,7 +83,7 @@ test("План А от первого приказа до итога и повт
   const canvas = page.locator("#map canvas");
   const score = page.locator("#score");
   const turn = page.locator("#turn-number");
-  const { advance, vehicle, destination, order, route, confirmation } = controls(page);
+  const { advance, vehicle, destination, order, route, confirmation, wait } = controls(page);
   await expect(canvas).toBeVisible();
   await expectNoHorizontalScroll(page);
   const queues = page.getByRole("list", { name: "Ожидают эвакуации по районам" });
@@ -100,6 +100,11 @@ test("План А от первого приказа до итога и повт
     Boolean(element.getContext("webgl2") || element.getContext("webgl"))
   )).toBe(true);
   await expect(turn).toHaveText("1");
+  for (const name of ["Автобус А1", "Автобус А2", "Паром"]) {
+    await expect(vehicle(name)).toHaveAttribute("aria-pressed", "false");
+  }
+  await expect(destination("Больница")).toBeHidden();
+  await expect(wait).toBeDisabled();
   await expect(page.locator("#turn-guide")).toContainText("забирает до 18 человек перед выездом");
   await expect(page.locator("#turn-feedback")).toBeEmpty();
   const help = page.getByRole("button", { name: "Как играть", exact: true });
@@ -120,6 +125,11 @@ test("План А от первого приказа до итога и повт
   await clickMarker(canvas, markers.bus1Start);
   await expect(vehicle("Автобус А1")).toHaveAttribute("aria-pressed", "true");
   await clickMarker(canvas, markers.hospital);
+  await expect(route("Автобус А1")).toContainText("Развязка → Больница");
+  await expect(vehicle("Автобус А1")).toHaveAttribute("aria-pressed", "true");
+  await clickMarker(canvas, [110, 110]);
+  await expect(vehicle("Автобус А1")).toHaveAttribute("aria-pressed", "false");
+  await expect(destination("Больница")).toBeHidden();
   await expect(route("Автобус А1")).toContainText("Развязка → Больница");
   await order("Автобус А2", "Развязка");
   await vehicle("Паром").click();
@@ -215,6 +225,7 @@ test("План А от первого приказа до итога и повт
   await expect(page.locator("#turn-feedback")).toBeEmpty();
   await expect(routeStatus(page, "Мост")).toHaveText("По 4-й ход");
   for (const [name, location] of [["Автобус А1", "Развязка"], ["Автобус А2", "Школа"], ["Паром", "Убежище"]]) {
+    await expect(vehicle(name)).toHaveAttribute("aria-pressed", "false");
     await expect(vehicle(name).locator(".vehicle-location")).toHaveText(location);
     await expect(vehicle(name).locator(".vehicle-occupancy")).toHaveText("0/18 мест занято");
   }
@@ -457,13 +468,14 @@ test("Ассеты и лицензии доступны локально, зву
     };
   });
   await page.goto("./");
-  const { destination } = controls(page);
+  const { destination, vehicle } = controls(page);
   const sound = page.getByRole("button", { name: "Звуки игры" });
   const cues = () => page.evaluate(() => window.playedCues);
   await expect(sound).toHaveText("Звук выкл.");
   await sound.click();
   await expect(sound).toHaveAttribute("aria-pressed", "true");
 
+  await vehicle("Автобус А1").click();
   await destination("Больница").press("Enter");
   await expect.poll(cues).toEqual(["click_001.ogg"]);
   await confirmIncompleteTurn(page);

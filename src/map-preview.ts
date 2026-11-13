@@ -22,7 +22,7 @@ type Point = { x: number; y: number };
 type MapView = {
   state: GameState;
   moves: NonNullable<TurnOrders["moves"]>;
-  selected: VehicleId;
+  selected: VehicleId | null;
   available: readonly NodeId[];
   conflicts: readonly ScenarioRouteId[];
   resolving: boolean;
@@ -36,6 +36,7 @@ type VehicleMarker = {
   fill: Phaser.GameObjects.Image | undefined;
   occupancy: Phaser.GameObjects.Text;
   selection: Phaser.GameObjects.Graphics;
+  hover: Phaser.GameObjects.Ellipse;
   checkmark: Phaser.GameObjects.Text;
   zone: Phaser.GameObjects.Zone;
 };
@@ -123,7 +124,7 @@ export class MapPreview extends Phaser.Scene {
 
   constructor(
     private readonly onDestination: (id: NodeId) => void,
-    private readonly onVehicle: (id: VehicleId) => void,
+    private readonly onVehicle: (id: VehicleId | null) => void,
     private readonly onReady: () => void,
   ) {
     super("evacuation-map");
@@ -160,6 +161,9 @@ export class MapPreview extends Phaser.Scene {
     for (const id of nodeIds) this.drawNode(id);
     for (const id of districtIds) this.drawQueue(id);
     for (const id of vehicleIds) this.drawVehicle(id);
+    this.input.on("pointerup", (_pointer: Phaser.Input.Pointer, targets: Phaser.GameObjects.GameObject[]) => {
+      if (targets.length === 0) this.onVehicle(null);
+    });
     this.onReady();
   }
 
@@ -168,12 +172,12 @@ export class MapPreview extends Phaser.Scene {
     this.tweens.killTweensOf(this.availability);
     this.availability.clear().setAlpha(0.65);
     this.arrows.clear();
-    const origin = state.vehicles[selected].node;
+    const origin = selected === null ? null : state.vehicles[selected].node;
     const plannedStops = new Set<NodeId>();
     for (const destination of Object.values(moves)) {
       if (destination) plannedStops.add(destination);
     }
-    const selectedDestination = moves[selected];
+    const selectedDestination = selected === null ? undefined : moves[selected];
     for (const route of routes) {
       const closed = state.closedRoutes.includes(route.id);
       const conflict = conflicts.includes(route.id);
@@ -251,7 +255,7 @@ export class MapPreview extends Phaser.Scene {
     this.updateQueues(state.waiting);
 
     for (const vehicle of vehicleIds) {
-      const { group, selection, checkmark, zone } = this.transport.get(vehicle)!;
+      const { group, selection, hover, checkmark, zone } = this.transport.get(vehicle)!;
       const { x, y } = parkedPosition(state, vehicle);
       group.setPosition(x, y);
       const active = vehicle === selected && !state.endReason;
@@ -260,6 +264,7 @@ export class MapPreview extends Phaser.Scene {
       selection.setVisible(active);
       checkmark.setVisible(moves[vehicle] !== undefined);
       zone.input!.enabled = !resolving && !state.endReason;
+      if (!zone.input!.enabled) hover.setVisible(false);
     }
   }
 
@@ -404,13 +409,16 @@ export class MapPreview extends Phaser.Scene {
     selection.fillStyle(0xf2fcf5).fillRoundedRect(-48, -51, 96, 79, 13);
     selection.lineStyle(5, accent).strokeRoundedRect(-48, -51, 96, 79, 13);
     selection.setVisible(false);
+    const hover = this.add.ellipse(iconX, 0, 78, 52, 0xa6dbc3, 0.65).setVisible(false);
     const zone = this.add.zone(0, -10, kind === "bus" ? 100 : 72, 72).setInteractive({ useHandCursor: true })
+      .on("pointerover", () => hover.setVisible(true))
+      .on("pointerout", () => hover.setVisible(false))
       .on("pointerup", () => this.onVehicle(id));
     const checkmark = this.add.text(kind === "bus" ? 40 : 32, -20, "✓", {
       fontFamily, fontSize: "22px", fontStyle: "bold", color: "#206341",
       stroke: "#f1f0e8", strokeThickness: 3,
     }).setOrigin(0.5).setVisible(false);
-    const group = this.add.container(0, 0, [selection, ...parts, occupancy, checkmark, zone]);
-    this.transport.set(id, { group, fill, occupancy, selection, checkmark, zone });
+    const group = this.add.container(0, 0, [selection, hover, ...parts, occupancy, checkmark, zone]);
+    this.transport.set(id, { group, fill, occupancy, selection, hover, checkmark, zone });
   }
 }

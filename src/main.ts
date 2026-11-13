@@ -68,7 +68,7 @@ let resolving = false;
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let draftFloodgate: FloodgateMode | undefined;
 let moves: Partial<Record<VehicleId, NodeId | null>> = {};
-let selected: VehicleId = "bus-1";
+let selected: VehicleId | null = null;
 const vehicleButtons = new Map<VehicleId, HTMLButtonElement>();
 const destinationButtons = new Map<NodeId, HTMLButtonElement>();
 const plannedRoutes = new Map<VehicleId, HTMLLIElement>();
@@ -135,14 +135,14 @@ function turnOrders(): TurnOrders {
   return isDecisionTurn() ? { moves, floodgate: draftFloodgate } : { moves };
 }
 
-function selectVehicle(id: VehicleId) {
-  if (resolving || state.endReason !== null) return;
+function selectVehicle(id: VehicleId | null) {
+  if (resolving || state.endReason !== null || (id === null && selected === null)) return;
   selected = id;
   render();
 }
 
 function assign(destination: NodeId | null) {
-  if (resolving || state.endReason !== null) return;
+  if (resolving || state.endReason !== null || selected === null) return;
   if (destination !== null && !availableDestinations(selected).includes(destination)) return;
   moves = { ...moves, [selected]: destination };
   sounds.play("order");
@@ -242,7 +242,8 @@ function describeNextStep() {
 }
 
 function render() {
-  const available = availableDestinations(selected);
+  const available = selected === null ? [] : availableDestinations(selected);
+  const selectedOrder = selected === null ? undefined : moves[selected];
   const issues = validateTurn(state, turnOrders());
   const conflicts = issues.filter((issue) => issue.kind === "route-capacity");
   const needsFloodgate = issues.some((issue) => issue.kind === "floodgate-choice-required");
@@ -254,7 +255,8 @@ function render() {
   turnNumber.textContent = String(state.turn);
   score.textContent = report.total.evacuated + " / " + report.total.initial;
   orderCount.textContent = (vehicleIds.length - unassigned.length) + " из " + vehicleIds.length + " готовы";
-  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути" : "Выбран транспорт · " + vehicleName(selected);
+  mapContext.textContent = finished ? "Эвакуация завершена" : resolving ? "Транспорт в пути"
+    : selected === null ? "Выбери автобус или паром" : "Выбран транспорт · " + vehicleName(selected);
   for (const [district, count] of queueCounts) {
     count.data = String(report.districts[district].waiting);
   }
@@ -313,16 +315,16 @@ function render() {
     button.classList.toggle("conflict", conflict);
   }
 
-  destinationGroup.setAttribute("aria-label", "Назначить маршрут · " + vehicleName(selected));
+  destinationGroup.setAttribute("aria-label", selected === null ? "Назначить маршрут" : "Назначить маршрут · " + vehicleName(selected));
   for (const [id, button] of destinationButtons) {
     button.hidden = !available.includes(id);
     button.disabled = resolving;
-    button.setAttribute("aria-pressed", String(moves[selected] === id));
+    button.setAttribute("aria-pressed", String(selectedOrder === id));
   }
-  wait.setAttribute("aria-pressed", String(moves[selected] === null));
+  wait.setAttribute("aria-pressed", String(selectedOrder === null));
 
   wait.disabled = resolving || available.length === 0;
-  wait.title = "Оставить на месте · " + vehicleName(selected);
+  wait.title = selected === null ? "Сначала выбери транспорт" : "Оставить на месте · " + vehicleName(selected);
   advance.disabled = resolving || finished || issues.length > 0;
   advance.classList.toggle("awaiting-floodgate", needsFloodgate);
   advance.textContent = resolving ? "Выполняется ход…" : needsFloodgate ? "Выполнить ход · выбери водосброс" : "Выполнить ход";
@@ -330,7 +332,7 @@ function render() {
     orderStatus.textContent = "Чтобы выполнить ход, выбери режим водосброса над картой.";
   } else if (conflicts.length) {
     orderStatus.textContent = "На мосту два приказа. Измени маршрут одного автобуса.";
-  } else if (moves[selected] !== undefined) {
+  } else if (selected === null || selectedOrder !== undefined) {
     orderStatus.textContent = "";
   } else {
     orderStatus.textContent = available.length
@@ -491,12 +493,12 @@ restart.addEventListener("click", () => {
   state = createInitialState();
   draftFloodgate = undefined;
   moves = {};
-  selected = "bus-1";
+  selected = null;
   journal.replaceChildren();
   turnFeedback.replaceChildren();
   journalEmpty.hidden = false;
   render();
-  vehicleButtons.get(selected)!.focus();
+  vehicleButtons.get(vehicleIds[0])!.focus({ preventScroll: true });
 });
 
 const scene = new MapPreview(assign, selectVehicle, () => {
