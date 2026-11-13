@@ -312,13 +312,10 @@ test("План Б: прогноз можно менять до подтверж�
   const bridgeLabel = page.getByRole("button", { name: "Мост", exact: true });
   const bridgeInfo = page.getByRole("region", { name: "Мост", exact: true });
   await bridgeLabel.click();
-  await expect(bridgeInfo).toContainText("Открыт до конца партии.");
-  await expect(bridgeInfo).toContainText("Последний проезд: ход 9 при открытом водосбросе.");
+  await expect(bridgeInfo).toContainText("Закроется через 2 хода.");
+  await expect(bridgeInfo).toContainText("Последний проезд: ход 4.");
   await keepClosed.check();
   await expect(bridgeInfo).toBeHidden();
-  await bridgeLabel.click();
-  await expect(bridgeInfo).toContainText("Закроется через 2 хода.");
-  await expect(bridgeInfo).toContainText("Последний проезд: ход 4 при закрытом водосбросе.");
   await expect(routeStatus(page, "Мост")).toHaveText("По 4-й ход");
   await expect(routeStatus(page, "Переправа")).toHaveText("По 6-й ход");
   await open.check();
@@ -333,6 +330,12 @@ test("План Б: прогноз можно менять до подтверж�
   await expect(turn).toHaveText("4");
   await expect(score).toHaveText("54 / 108");
   await expect(open).toBeHidden();
+  await bridgeLabel.click();
+  await expect(bridgeInfo).toContainText("Открыт до конца партии.");
+  await expect(bridgeInfo).toContainText("Последний проезд: ход 9.");
+  const ferryLabel = page.getByRole("button", { name: "Переправа", exact: true });
+  await ferryLabel.click();
+  await expect(page.getByRole("region", { name: "Переправа", exact: true })).toContainText("Последний проезд: ход 4.");
   await page.getByText("Прогноз закрытий", { exact: true }).click();
   await expect(forecasts.getByRole("row", { name: /Открыт · выбран/ })).toBeVisible();
   await page.getByText("Журнал эвакуации", { exact: true }).click();

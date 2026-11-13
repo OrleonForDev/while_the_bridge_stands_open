@@ -141,7 +141,7 @@ for (const id of Object.keys(routeLabelPositions) as (keyof typeof routeLabelPos
     button.setAttribute("aria-describedby", "route-info-description route-info-forecast");
     placeOnMap(routeInfo, routeLabelPositions[id]);
     routeInfo.dataset.route = id;
-    renderRouteInfo(state.floodgate ?? draftFloodgate ?? "closed");
+    renderRouteInfo();
     routeInfo.hidden = false;
   });
   const badge = document.createElement("span");
@@ -175,8 +175,9 @@ document.addEventListener("keydown", (event) => {
   button.focus({ preventScroll: true });
 });
 
-function renderRouteInfo(mode: FloodgateMode) {
+function renderRouteInfo() {
   if (inspectedRoute === null) return;
+  const mode = state.floodgate ?? "closed";
   const { lastOpenTurn, firstClosedTurn } = forecasts[mode].find(({ route }) => route === inspectedRoute)!;
   if (lastOpenTurn === null || firstClosedTurn === null) return;
 
@@ -192,12 +193,7 @@ function renderRouteInfo(mode: FloodgateMode) {
     ? "Открыт до конца партии."
     : remaining === 1 ? "Закроется после этого хода."
     : "Закроется через " + remaining + (remaining < 5 ? " хода." : " ходов.");
-  const dependsOnFloodgate = forecasts[mode === "open" ? "closed" : "open"]
-    .find(({ route }) => route === inspectedRoute)!.lastOpenTurn !== lastOpenTurn;
-  const condition = state.floodgate === null && dependsOnFloodgate
-    ? " при " + (mode === "open" ? "открытом" : "закрытом") + " водосбросе"
-    : "";
-  routeInfoForecast.textContent = "Последний проезд: ход " + lastOpenTurn + condition + ".";
+  routeInfoForecast.textContent = "Последний проезд: ход " + lastOpenTurn + ".";
 }
 
 function availableDestinations(vehicle: VehicleId): NodeId[] {
@@ -449,7 +445,7 @@ function render() {
       label.badge.textContent = closed ? " ×" : conflict ? " !" : "";
     }
   }
-  renderRouteInfo(forecastMode);
+  renderRouteInfo();
 
   scene.renderState({
     state, moves, selected, available, resolving,
